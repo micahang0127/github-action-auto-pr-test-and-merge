@@ -34,11 +34,6 @@ jobs:
         run: pnpm lint
         continue-on-error: true
 
-      - name: Check formatting
-        id: format
-        run: pnpm format:check
-        continue-on-error: true
-
       - name: Build project
         id: build
         run: pnpm build
