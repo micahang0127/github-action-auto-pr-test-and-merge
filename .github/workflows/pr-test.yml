@@ -1,0 +1,142 @@
+name: PR Test & Coverage
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        id: lint
+        run: pnpm lint
+        continue-on-error: true
+
+      - name: Check formatting
+        id: format
+        run: pnpm format:check
+        continue-on-error: true
+
+      - name: Build project
+        id: build
+        run: pnpm build
+        continue-on-error: true
+
+      - name: Comment on PR (Failure)
+        if: |
+          steps.lint.outcome == 'failure' ||
+          steps.format.outcome == 'failure' ||
+          steps.build.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const results = {
+              'Linting': '${{ steps.lint.outcome }}',
+              'Formatting': '${{ steps.format.outcome }}',
+              'Build': '${{ steps.build.outcome }}'
+            };
+
+            let failedChecks = [];
+            Object.entries(results).forEach(([check, outcome]) => {
+              if (outcome === 'failure') {
+                failedChecks.push(`| ${check} | ❌ Failed |`);
+              }
+            });
+
+            const comment = `## ❌ 검사 실패
+
+            다음 항목에서 실패했습니다. 코드를 수정한 후 다시 커밋해주세요.
+
+            | 항목 | 상태 |
+            |------|------|
+            ${failedChecks.join('\n')}
+
+            [전체 결과 보기](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+
+      - name: Close PR (Failure)
+        if: |
+          steps.lint.outcome == 'failure' ||
+          steps.format.outcome == 'failure' ||
+          steps.build.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              state: 'closed'
+            });
+
+      - name: Comment on PR (Success)
+        if: |
+          steps.lint.outcome == 'success' &&
+          steps.format.outcome == 'success' &&
+          steps.build.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const comment = `## ✅ 모든 검사 통과
+
+            Linting, Formatting, Build 모두 통과했습니다! 🎉
+
+            자동으로 merge됩니다.
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+
+      - name: Auto merge PR (Success)
+        if: |
+          steps.lint.outcome == 'success' &&
+          steps.format.outcome == 'success' &&
+          steps.build.outcome == 'success'
+        run: gh pr merge --squash --auto --delete-branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail workflow if checks failed
+        if: |
+          steps.lint.outcome == 'failure' ||
+          steps.format.outcome == 'failure' ||
+          steps.build.outcome == 'failure'
+        run: exit 1
