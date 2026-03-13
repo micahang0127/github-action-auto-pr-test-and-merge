@@ -42,8 +42,7 @@ jobs:
             --title "PR: ${{ steps.branch.outputs.branch_name }}" \
             --body-file .github/pull_request_template.md \
             --base dev \
-            --head "${{ steps.branch.outputs.branch_name }}" \
-            --draft
+            --head "${{ steps.branch.outputs.branch_name }}"
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
 
