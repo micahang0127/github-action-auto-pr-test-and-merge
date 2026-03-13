@@ -49,10 +49,3 @@ jobs:
       - name: PR already exists
         if: steps.check-pr.outputs.existing_pr_count != '0'
         run: echo "Skipping PR creation - PR already exists for branch ${{ steps.branch.outputs.branch_name }}"
-
-      - name: Mark PR as ready for review
-        run: |
-          PR_NUMBER=$(gh pr list --head "${{ steps.branch.outputs.branch_name }}" --json number --jq '.[0].number')
-          gh pr ready $PR_NUMBER
-        env:
-          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
