@@ -39,17 +39,24 @@ jobs:
         run: pnpm build
         continue-on-error: true
 
+      - name: Run tests with coverage
+        id: test
+        run: pnpm test:coverage
+        continue-on-error: true
+
       - name: Comment on PR (Failure)
         if: |
           steps.lint.outcome == 'failure' ||
-          steps.build.outcome == 'failure'
+          steps.build.outcome == 'failure' ||
+          steps.test.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const results = {
               'Linting': '${{ steps.lint.outcome }}',
-              'Build': '${{ steps.build.outcome }}'
+              'Build': '${{ steps.build.outcome }}',
+              'Test': '${{ steps.test.outcome }}'
             };
 
             let failedChecks = [];
@@ -80,7 +87,8 @@ jobs:
       - name: Close PR (Failure)
         if: |
           steps.lint.outcome == 'failure' ||
-          steps.build.outcome == 'failure'
+          steps.build.outcome == 'failure' ||
+          steps.test.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -92,10 +100,28 @@ jobs:
               state: 'closed'
             });
 
+      - name: Parse coverage results
+        id: coverage
+        if: steps.test.outcome == 'success'
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(jq '.total.lines.pct' coverage/coverage-summary.json)
+            COVERAGE_STATUS="✅"
+            if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+              COVERAGE_STATUS="❌"
+            fi
+            echo "pct=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "status=$COVERAGE_STATUS" >> $GITHUB_OUTPUT
+          else
+            echo "pct=N/A" >> $GITHUB_OUTPUT
+            echo "status=⚠️" >> $GITHUB_OUTPUT
+          fi
+
       - name: Comment on PR (Success)
         if: |
           steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success'
+          steps.build.outcome == 'success' &&
+          steps.test.outcome == 'success'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -106,6 +132,8 @@ jobs:
             |------|------|
             | Linting | ✅ Success |
             | Build | ✅ Success |
+            | Test | ✅ Success |
+            | Coverage | ${{ steps.coverage.outputs.status }} ${{ steps.coverage.outputs.pct }}% |
 
             모든 검사가 통과했습니다! 🎉
 
@@ -124,7 +152,8 @@ jobs:
       - name: Verify PR base is dev
         if: |
           steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success'
+          steps.build.outcome == 'success' &&
+          steps.test.outcome == 'success'
         run: |
           PR_BASE=$(gh pr view ${{ github.event.pull_request.number }} --json baseRefName --jq '.baseRefName')
           if [ "$PR_BASE" != "dev" ]; then
@@ -138,7 +167,8 @@ jobs:
       - name: Auto merge PR to dev (Success)
         if: |
           steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success'
+          steps.build.outcome == 'success' &&
+          steps.test.outcome == 'success'
         run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
@@ -146,5 +176,6 @@ jobs:
       - name: Fail workflow if checks failed
         if: |
           steps.lint.outcome == 'failure' ||
-          steps.build.outcome == 'failure'
+          steps.build.outcome == 'failure' ||
+          steps.test.outcome == 'failure'
         run: exit 1
