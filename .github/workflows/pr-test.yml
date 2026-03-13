@@ -1,0 +1,71 @@
+name: PR Test & Coverage
+
+on:
+  pull_request:
+    branches:
+      - dev
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+  auto-merge:
+    runs-on: ubuntu-latest
+    name: Auto Merge PR
+    needs: lint
+    if: success()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auto merge PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --squash \
+            --auto
+
+  close-on-failure:
+    runs-on: ubuntu-latest
+    name: Close PR on Failure
+    needs: lint
+    if: failure()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comment on PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "❌ ESLint 검사 실패로 PR을 닫습니다. 오류를 수정한 후 새로운 PR을 생성해주세요."
+
+      - name: Close PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr close "${{ github.event.pull_request.number }}"
