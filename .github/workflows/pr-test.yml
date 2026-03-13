@@ -1,9 +1,9 @@
 name: PR Test & Coverage
 
 on:
-  workflow_run:
-    workflows: ["Auto PR Create"]
-    types: [completed]
+  pull_request:
+    branches:
+      - dev
 
 permissions:
   contents: write        
@@ -16,14 +16,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Get PR number
-        id: pr
-        run: |
-          PR_NUMBER=$(gh pr list --head "${{ github.event.workflow_run.head_branch }}" --json number --jq '.[0].number')
-          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -81,7 +73,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ steps.pr.outputs.pr_number }},
+              issue_number: ${{ github.event.pull_request.number }},
               body: comment
             });
 
@@ -96,7 +88,7 @@ jobs:
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: ${{ steps.pr.outputs.pr_number }},
+              pull_number: ${{ github.event.pull_request.number }},
               state: 'closed'
             });
 
@@ -125,7 +117,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ steps.pr.outputs.pr_number }},
+              issue_number: ${{ github.event.pull_request.number }},
               body: comment
             });
 
@@ -134,7 +126,7 @@ jobs:
           steps.lint.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
-          PR_BASE=$(gh pr view ${{ steps.pr.outputs.pr_number }} --json baseRefName --jq '.baseRefName')
+          PR_BASE=$(gh pr view ${{ github.event.pull_request.number }} --json baseRefName --jq '.baseRefName')
           if [ "$PR_BASE" != "dev" ]; then
             echo "❌ Error: PR base is $PR_BASE, not dev"
             exit 1
@@ -147,7 +139,7 @@ jobs:
         if: |
           steps.lint.outcome == 'success' &&
           steps.build.outcome == 'success'
-        run: gh pr merge ${{ steps.pr.outputs.pr_number }} --squash --delete-branch
+        run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
 
