@@ -33,7 +33,7 @@ jobs:
             echo "PR already exists for this branch"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
 
       - name: Create PR
         if: steps.check-pr.outputs.existing_pr_count == '0'
@@ -45,7 +45,7 @@ jobs:
             --head "${{ steps.branch.outputs.branch_name }}" \
             --draft
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
 
       - name: PR already exists
         if: steps.check-pr.outputs.existing_pr_count != '0'
