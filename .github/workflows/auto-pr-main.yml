@@ -1,0 +1,44 @@
+name: Auto PR Create (dev → main)
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for existing PR
+        id: check-pr
+        run: |
+          EXISTING_PR=$(gh pr list --head dev --base main --json number --jq length)
+          echo "existing_pr_count=$EXISTING_PR" >> $GITHUB_OUTPUT
+          if [ "$EXISTING_PR" -gt 0 ]; then
+            echo "PR already exists for dev → main"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
+
+      - name: Create PR
+        if: steps.check-pr.outputs.existing_pr_count == '0'
+        run: |
+          gh pr create \
+            --title "PR: dev → main" \
+            --body-file .github/pull_request_template.md \
+            --base main \
+            --head dev
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
+
+      - name: PR already exists
+        if: steps.check-pr.outputs.existing_pr_count != '0'
+        run: echo "Skipping PR creation - PR already exists for dev → main"
