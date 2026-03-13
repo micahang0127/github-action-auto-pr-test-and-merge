@@ -41,7 +41,7 @@ jobs:
           gh pr create \
             --title "PR: ${{ steps.branch.outputs.branch_name }}" \
             --body-file .github/pull_request_template.md \
-            --base main \
+            --base dev \
             --head "${{ steps.branch.outputs.branch_name }}" \
             --draft
         env:
