@@ -113,9 +113,17 @@ jobs:
           script: |
             const comment = `## ✅ 모든 검사 통과
 
-            Linting, Formatting, Build 모두 통과했습니다! 🎉
+            | 항목 | 상태 |
+            |------|------|
+            | Linting | ✅ Success |
+            | Formatting | ✅ Success |
+            | Build | ✅ Success |
 
-            자동으로 merge됩니다.
+            모든 검사가 통과했습니다! 🎉
+
+            자동으로 dev 브랜치로 merge됩니다.
+
+            [전체 결과 보기](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             `;
 
             await github.rest.issues.createComment({
@@ -130,9 +138,9 @@ jobs:
           steps.lint.outcome == 'success' &&
           steps.format.outcome == 'success' &&
           steps.build.outcome == 'success'
-        run: gh pr merge --squash --auto --delete-branch
+        run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
 
       - name: Fail workflow if checks failed
         if: |
