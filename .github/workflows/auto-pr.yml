@@ -39,8 +39,8 @@ jobs:
         if: steps.check-pr.outputs.existing_pr_count == '0'
         run: |
           gh pr create \
-            --title "$(echo '${{ steps.branch.outputs.branch_name }}' | sed 's/feature\///')" \
-            --body "Automated PR creation from ${{ steps.branch.outputs.branch_name }}" \
+            --title "PR: ${{ steps.branch.outputs.branch_name }}" \
+            --body-file .github/pull_request_template.md \
             --base main \
             --head "${{ steps.branch.outputs.branch_name }}" \
             --draft
