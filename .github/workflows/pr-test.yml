@@ -47,17 +47,19 @@ jobs:
           BRANCH_NAME="${GITHUB_REF_NAME}"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
-          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base dev --json number --jq length)
-          if [ "$EXISTING_PR" -eq 0 ]; then
-            gh pr create \
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base dev --json number --jq '.[0].number // empty')
+          if [ -z "$EXISTING_PR" ]; then
+            PR_URL=$(gh pr create \
               --title "PR: $BRANCH_NAME" \
               --body-file .github/pull_request_template.md \
               --base dev \
-              --head "$BRANCH_NAME"
+              --head "$BRANCH_NAME")
+            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          else
+            PR_NUMBER="$EXISTING_PR"
+            PR_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url')
           fi
 
-          PR_NUMBER=$(gh pr list --head "$BRANCH_NAME" --base dev --json number --jq '.[0].number')
-          PR_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url')
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
           echo "PR_URL=$PR_URL" >> $GITHUB_ENV
         env:
