@@ -92,6 +92,27 @@ jobs:
               state: 'closed'
             });
 
+      - name: Discord 알림 (실패)
+        if: |
+          steps.lint.outcome == 'failure' ||
+          steps.build.outcome == 'failure'
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d '{
+              "embeds": [{
+                "title": "❌ PR 테스트 실패",
+                "color": 15158332,
+                "fields": [
+                  {"name": "브랜치", "value": "${{ github.head_ref }}", "inline": true},
+                  {"name": "PR", "value": "[#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})", "inline": true},
+                  {"name": "Lint", "value": "${{ steps.lint.outcome == '\''failure'\'' && '\''❌ 실패'\'' || '\''✅ 성공'\'' }}", "inline": true},
+                  {"name": "Build", "value": "${{ steps.build.outcome == '\''failure'\'' && '\''❌ 실패'\'' || '\''✅ 성공'\'' }}", "inline": true}
+                ],
+                "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              }]
+            }' \
+            ${{ secrets.DISCORD_WEBHOOK }}
+
       - name: Comment on PR (Success)
         if: |
           steps.lint.outcome == 'success' &&
@@ -142,6 +163,27 @@ jobs:
         run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
+
+      - name: Discord 알림 (성공)
+        if: |
+          steps.lint.outcome == 'success' &&
+          steps.build.outcome == 'success'
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d '{
+              "embeds": [{
+                "title": "✅ PR 테스트 성공 & dev 머지 완료",
+                "color": 3066993,
+                "fields": [
+                  {"name": "브랜치", "value": "${{ github.head_ref }}", "inline": true},
+                  {"name": "PR", "value": "[#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})", "inline": true},
+                  {"name": "Lint", "value": "✅ 성공", "inline": true},
+                  {"name": "Build", "value": "✅ 성공", "inline": true}
+                ],
+                "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              }]
+            }' \
+            ${{ secrets.DISCORD_WEBHOOK }}
 
       - name: Fail workflow if checks failed
         if: |
