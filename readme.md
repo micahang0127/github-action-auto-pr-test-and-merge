@@ -131,18 +131,18 @@ prj-tobe/
 
 #### Keyword 관련
 
-| type | 의미 | 예시 |
-|------|------|------|
-| **feat** | 새로운 기능 추가 | `feat: 로그인 API 구현` |
-| **update** | 기능 수정 | `update: 비밀번호 검증 추가` |
-| **fix** | 버그 수정 | `fix: 비밀번호 검증 오류 수정` |
-| **docs** | 문서만 수정 | `docs: 설치 가이드 업데이트` |
-| **style** | 코드 포맷, 세미콜론 누락 등 | `style: 버튼 스타일 정리` |
-| **refactor** | 기능 변경 없이 코드 구조 개선 | `refactor: fetch 함수 리팩토링` |
-| **test** | 테스트 코드 추가/수정 | `test: 로그인 테스트 추가` |
-| **chore** | 빌드, 환경설정, 패키지 관리 | `chore: 라이브러리 업데이트` |
-| **ci** | CI/CD 관련 설정 | `ci: github-actions - workflow 수정` |
-| **revert** | 이전 커밋 되돌리기 | `revert: feat: 로그인 API 구현` |
+| type         | 의미                          | 예시                                 |
+| ------------ | ----------------------------- | ------------------------------------ |
+| **feat**     | 새로운 기능 추가              | `feat: 로그인 API 구현`              |
+| **update**   | 기능 수정                     | `update: 비밀번호 검증 추가`         |
+| **fix**      | 버그 수정                     | `fix: 비밀번호 검증 오류 수정`       |
+| **docs**     | 문서만 수정                   | `docs: 설치 가이드 업데이트`         |
+| **style**    | 코드 포맷, 세미콜론 누락 등   | `style: 버튼 스타일 정리`            |
+| **refactor** | 기능 변경 없이 코드 구조 개선 | `refactor: fetch 함수 리팩토링`      |
+| **test**     | 테스트 코드 추가/수정         | `test: 로그인 테스트 추가`           |
+| **chore**    | 빌드, 환경설정, 패키지 관리   | `chore: 라이브러리 업데이트`         |
+| **ci**       | CI/CD 관련 설정               | `ci: github-actions - workflow 수정` |
+| **revert**   | 이전 커밋 되돌리기            | `revert: feat: 로그인 API 구현`      |
 
 ---
 
@@ -150,19 +150,15 @@ prj-tobe/
 
 커밋 메시지 끝에 이슈 번호를 참조합니다
 
-- 참조만: `refs #123`  
-- 완료: `closes #123` / `fixes #123`  
-
-
+- 참조만: `refs #123`
+- 완료: `closes #123` / `fixes #123`
 
 #### Git Commit 컨벤션 최종 예시
 
-
-- 예시: 
-
-    * feat: 로그인 API 구현 refs #123
-    * update: 비밀번호 검증 추가 refs #124
-    * fix:  비밀번호 검증 오류 수정 closes #124
+- 예시:
+  - feat: 로그인 API 구현 refs #123
+  - update: 비밀번호 검증 추가 refs #124
+  - fix: 비밀번호 검증 오류 수정 closes #124
 
 <br>
 
@@ -204,19 +200,18 @@ prj-tobe/
 
 ### 파일명 규칙
 
-파일명은 **PascalCase** 또는 **camelCase**를 기본으로 합니다.  
-- **컴포넌트/페이지**: `PascalCase`  
-- **유틸/함수**: `camelCase`  
+파일명은 **PascalCase** 또는 **camelCase**를 기본으로 합니다.
+
+- **컴포넌트/페이지**: `PascalCase`
+- **유틸/함수**: `camelCase`
 
 #### 예시
 
-| 유형 | 규칙 | 예시 |
-|------|------|------|
+| 유형                  | 규칙       | 예시                               |
+| --------------------- | ---------- | ---------------------------------- |
 | React 페이지/컴포넌트 | PascalCase | `LoginPage.tsx`, `UserProfile.tsx` |
-| React 컴포넌트 파일 | PascalCase | `Button.tsx`, `Modal.tsx` |
-| Hooks / 유틸 함수 | camelCase | `useAuth.ts`, `formatDate.ts` |
-
-
+| React 컴포넌트 파일   | PascalCase | `Button.tsx`, `Modal.tsx`          |
+| Hooks / 유틸 함수     | camelCase  | `useAuth.ts`, `formatDate.ts`      |
 
 **컴포넌트**: PascalCase (예: `UserProfile.tsx`)
 
@@ -262,5 +257,4 @@ Built with ❤️ by KP한석화학 LAB BIZ팀
 
 </div>
 
-test9
-
+test14 - 03
