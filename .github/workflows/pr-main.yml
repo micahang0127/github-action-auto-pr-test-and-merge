@@ -2,6 +2,7 @@ name: PR Test & Coverage (main)
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
     branches:
       - main
 
@@ -11,11 +12,15 @@ permissions:
 
 jobs:
   test:
+    if: |
+      startsWith(github.head_ref, 'dev')
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -31,13 +36,25 @@ jobs:
 
       - name: Run linter
         id: lint
-        run: pnpm lint
+        run: |
+          set -o pipefail
+          pnpm lint 2>&1 | tee /tmp/lint_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Build project
         id: build
-        run: pnpm build
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee /tmp/build_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
+
+      - name: Set PR variables
+        run: |
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          echo "PR_URL=${{ github.event.pull_request.html_url }}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
 
       - name: Comment on PR (Failure)
         if: |
@@ -92,6 +109,61 @@ jobs:
               state: 'closed'
             });
 
+      - name: Discord 알림 (실패)
+        if: |
+          steps.lint.outcome == 'failure' ||
+          steps.build.outcome == 'failure'
+        run: |
+          LINT_STATUS="${{ steps.lint.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
+          BUILD_STATUS="${{ steps.build.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
+
+          # 기본 필드 구성
+          FIELDS=$(jq -n \
+            --arg branch "${{ env.BRANCH_NAME }}" \
+            --arg pr    "[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})" \
+            --arg actor "${{ github.actor }}" \
+            --arg lint  "$LINT_STATUS" \
+            --arg build "$BUILD_STATUS" \
+            '[
+              {"name": "브랜치",  "value": $branch, "inline": true},
+              {"name": "PR",      "value": $pr,     "inline": true},
+              {"name": "작성자",  "value": $actor,  "inline": true},
+              {"name": "Lint",    "value": $lint,   "inline": true},
+              {"name": "Build",   "value": $build,  "inline": true}
+            ]')
+
+          # Lint 에러 메시지 조건부 추가
+          if [ "${{ steps.lint.outcome }}" = "failure" ] && [ -s /tmp/lint_output.txt ]; then
+            LINT_MSG=$(head -c 1016 /tmp/lint_output.txt)
+            FIELDS=$(echo "$FIELDS" | jq \
+              --arg msg "$LINT_MSG" \
+              '. + [{"name": "Lint 에러", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
+          # Build 에러 메시지 조건부 추가
+          if [ "${{ steps.build.outcome }}" = "failure" ] && [ -s /tmp/build_output.txt ]; then
+            BUILD_MSG=$(head -c 1016 /tmp/build_output.txt)
+            FIELDS=$(echo "$FIELDS" | jq \
+              --arg msg "$BUILD_MSG" \
+              '. + [{"name": "Build 에러", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
+          PAYLOAD=$(jq -n \
+            --argjson fields "$FIELDS" \
+            --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              "embeds": [{
+                "title": "❌ PR 테스트 실패",
+                "color": 15158332,
+                "fields": $fields,
+                "url": $url
+              }]
+            }')
+
+          curl -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            ${{ secrets.DISCORD_WEBHOOK }}
+
       - name: Comment on PR (Success)
         if: |
           steps.lint.outcome == 'success' &&
@@ -142,6 +214,28 @@ jobs:
         run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
+
+      - name: Discord 알림 (성공)
+        if: |
+          steps.lint.outcome == 'success' &&
+          steps.build.outcome == 'success'
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"✅ PR 테스트 성공 & main 머지 완료\",
+                \"color\": 3066993,
+                \"fields\": [
+                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
+                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
+                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                  {\"name\": \"Lint\", \"value\": \"✅ 성공\", \"inline\": true},
+                  {\"name\": \"Build\", \"value\": \"✅ 성공\", \"inline\": true}
+                ],
+                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }" \
+            ${{ secrets.DISCORD_WEBHOOK }}
 
       - name: Fail workflow if checks failed
         if: |
