@@ -11,8 +11,7 @@ permissions:
 
 jobs:
   test:
-    if: |
-      startsWith(github.head_ref, 'dev')
+    if: github.head_ref == 'dev'
     runs-on: ubuntu-latest
 
     steps:
@@ -161,7 +160,7 @@ jobs:
 
           curl -H "Content-Type: application/json" \
             -d "$PAYLOAD" \
-            ${{ secrets.DISCORD_WEBHOOK }}
+            "${{ secrets.DISCORD_WEBHOOK }}"
 
       - name: Comment on PR (Success)
         if: |
@@ -234,7 +233,7 @@ jobs:
                 \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
               }]
             }" \
-            ${{ secrets.DISCORD_WEBHOOK }}
+            "${{ secrets.DISCORD_WEBHOOK }}"
 
       - name: Fail workflow if checks failed
         if: |
