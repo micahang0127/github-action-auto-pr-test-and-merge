@@ -47,14 +47,27 @@ jobs:
           BRANCH_NAME="dev"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
-          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq '.[0].number // empty')
+          # open PR 먼저 확인
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base main --state open --json number --jq '.[0].number // empty')
+
           if [ -z "$EXISTING_PR" ]; then
-            PR_URL=$(gh pr create \
-              --title "PR: $BRANCH_NAME" \
-              --body-file .github/pull_request_template.md \
-              --base main \
-              --head "$BRANCH_NAME")
-            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+            # closed PR 확인 (충돌로 닫힌 PR)
+            CLOSED_PR=$(gh pr list --head "$BRANCH_NAME" --base main --state closed --json number --jq '.[0].number // empty')
+
+            if [ -n "$CLOSED_PR" ]; then
+              # closed PR을 reopen
+              gh pr reopen "$CLOSED_PR"
+              PR_NUMBER="$CLOSED_PR"
+              PR_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url')
+            else
+              # 새 PR 생성
+              PR_URL=$(gh pr create \
+                --title "PR: $BRANCH_NAME" \
+                --body-file .github/pull_request_template.md \
+                --base main \
+                --head "$BRANCH_NAME")
+              PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+            fi
           else
             PR_NUMBER="$EXISTING_PR"
             PR_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url')
@@ -280,7 +293,8 @@ jobs:
       - name: Discord 알림 (성공)
         if: |
           steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success'
+          steps.build.outcome == 'success' &&
+          steps.merge.outcome == 'success'
         run: |
           curl -H "Content-Type: application/json" \
             -d "{
@@ -302,5 +316,6 @@ jobs:
       - name: Fail workflow if checks failed
         if: |
           steps.lint.outcome == 'failure' ||
-          steps.build.outcome == 'failure'
+          steps.build.outcome == 'failure' ||
+          steps.merge.outcome == 'failure'
         run: exit 1
