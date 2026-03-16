@@ -34,12 +34,18 @@ jobs:
 
       - name: Run linter
         id: lint
-        run: pnpm lint
+        run: |
+          set -o pipefail
+          pnpm lint 2>&1 | tee /tmp/lint_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Build project
         id: build
-        run: pnpm build
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee /tmp/build_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Set PR variables
@@ -108,21 +114,52 @@ jobs:
         run: |
           LINT_STATUS="${{ steps.lint.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
           BUILD_STATUS="${{ steps.build.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"❌ PR 테스트 실패\",
-                \"color\": 15158332,
-                \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
-                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
-                  {\"name\": \"Lint\", \"value\": \"$LINT_STATUS\", \"inline\": true},
-                  {\"name\": \"Build\", \"value\": \"$BUILD_STATUS\", \"inline\": true}
-                ],
-                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+
+          # 기본 필드 구성
+          FIELDS=$(jq -n \
+            --arg branch "${{ env.BRANCH_NAME }}" \
+            --arg pr    "[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})" \
+            --arg actor "${{ github.actor }}" \
+            --arg lint  "$LINT_STATUS" \
+            --arg build "$BUILD_STATUS" \
+            '[
+              {"name": "브랜치",  "value": $branch, "inline": true},
+              {"name": "PR",      "value": $pr,     "inline": true},
+              {"name": "작성자",  "value": $actor,  "inline": true},
+              {"name": "Lint",    "value": $lint,   "inline": true},
+              {"name": "Build",   "value": $build,  "inline": true}
+            ]')
+
+          # Lint 에러 메시지 조건부 추가
+          if [ "${{ steps.lint.outcome }}" = "failure" ] && [ -s /tmp/lint_output.txt ]; then
+            LINT_MSG=$(head -c 1016 /tmp/lint_output.txt)
+            FIELDS=$(echo "$FIELDS" | jq \
+              --arg msg "$LINT_MSG" \
+              '. + [{"name": "Lint 에러", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
+          # Build 에러 메시지 조건부 추가
+          if [ "${{ steps.build.outcome }}" = "failure" ] && [ -s /tmp/build_output.txt ]; then
+            BUILD_MSG=$(head -c 1016 /tmp/build_output.txt)
+            FIELDS=$(echo "$FIELDS" | jq \
+              --arg msg "$BUILD_MSG" \
+              '. + [{"name": "Build 에러", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
+          PAYLOAD=$(jq -n \
+            --argjson fields "$FIELDS" \
+            --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              "embeds": [{
+                "title": "❌ PR 테스트 실패",
+                "color": 15158332,
+                "fields": $fields,
+                "url": $url
               }]
-            }" \
+            }')
+
+          curl -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
             ${{ secrets.DISCORD_WEBHOOK }}
 
       - name: Comment on PR (Success)
