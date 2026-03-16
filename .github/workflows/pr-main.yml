@@ -1,8 +1,7 @@
-name: Auto PR Create (dev → main)
+name: PR Test & Coverage (main)
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
     branches:
       - main
 
@@ -17,8 +16,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -41,12 +38,6 @@ jobs:
         id: build
         run: pnpm build
         continue-on-error: true
-
-      - name: Set PR variables
-        run: |
-          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
-          echo "PR_URL=${{ github.event.pull_request.html_url }}" >> $GITHUB_ENV
-          echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
 
       - name: Comment on PR (Failure)
         if: |
@@ -101,30 +92,6 @@ jobs:
               state: 'closed'
             });
 
-      - name: Discord 알림 (실패)
-        if: |
-          steps.lint.outcome == 'failure' ||
-          steps.build.outcome == 'failure'
-        run: |
-          LINT_STATUS="${{ steps.lint.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
-          BUILD_STATUS="${{ steps.build.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"❌ PR 테스트 실패\",
-                \"color\": 15158332,
-                \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
-                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
-                  {\"name\": \"Lint\", \"value\": \"$LINT_STATUS\", \"inline\": true},
-                  {\"name\": \"Build\", \"value\": \"$BUILD_STATUS\", \"inline\": true}
-                ],
-                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
-              }]
-            }" \
-            ${{ secrets.DISCORD_WEBHOOK }}
-
       - name: Comment on PR (Success)
         if: |
           steps.lint.outcome == 'success' &&
@@ -154,138 +121,30 @@ jobs:
               body: comment
             });
 
-      - name: Verify PR (head: dev, base: main)
-        id: verify
+      - name: Verify PR is from dev to main
         if: |
           steps.lint.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
-          PR_HEAD=$(gh pr view "${{ github.event.pull_request.number }}" --json headRefName --jq '.headRefName')
-          PR_BASE=$(gh pr view "${{ github.event.pull_request.number }}" --json baseRefName --jq '.baseRefName')
-
+          PR_HEAD=$(gh pr view ${{ github.event.pull_request.number }} --json headRefName --jq '.headRefName')
           if [ "$PR_HEAD" != "dev" ]; then
-            echo "❌ Error: PR head is $PR_HEAD, only dev is allowed"
+            echo "❌ Error: PR must be from dev branch, but got $PR_HEAD"
             exit 1
           fi
-
-          if [ "$PR_BASE" != "main" ]; then
-            echo "❌ Error: PR base is $PR_BASE, only main is allowed"
-            exit 1
-          fi
-
-          echo "✅ PR verified: dev → main"
+          echo "✅ PR is from dev branch"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Auto merge PR to main (Success)
-        id: merge
         if: |
           steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success' &&
-          steps.verify.outcome == 'success'
-        run: gh pr merge "${{ github.event.pull_request.number }}" --squash
-        continue-on-error: true
+          steps.build.outcome == 'success'
+        run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
-
-      - name: Comment on PR (Merge Conflict)
-        if: |
-          steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success' &&
-          steps.merge.outcome == 'failure'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const comment = `## ❌ Merge 충돌 발생
-
-            dev → main merge 중 충돌이 발생했습니다.
-
-            **해결 방법:**
-            \`\`\`bash
-            git checkout dev
-            git fetch origin main
-            git merge origin/main
-            # 충돌 해결 후 push
-            \`\`\`
-
-            충돌을 해결하고 다시 커밋해주세요.
-
-            [전체 결과 보기](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            `;
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ github.event.pull_request.number }},
-              body: comment
-            });
-
-      - name: Close PR (Merge Conflict)
-        if: |
-          steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success' &&
-          steps.merge.outcome == 'failure'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            await github.rest.pulls.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: ${{ github.event.pull_request.number }},
-              state: 'closed'
-            });
-
-      - name: Discord 알림 (Merge 충돌)
-        if: |
-          steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success' &&
-          steps.merge.outcome == 'failure'
-        run: |
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"❌ Merge 충돌 - PR 닫힘\",
-                \"color\": 15158332,
-                \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
-                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
-                  {\"name\": \"원인\", \"value\": \"dev → main merge 충돌\", \"inline\": false},
-                  {\"name\": \"해결\", \"value\": \"충돌을 해결하고 dev에 다시 push하세요\", \"inline\": false}
-                ],
-                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
-              }]
-            }" \
-            ${{ secrets.DISCORD_WEBHOOK }}
-
-      - name: Discord 알림 (성공)
-        if: |
-          steps.lint.outcome == 'success' &&
-          steps.build.outcome == 'success' &&
-          steps.merge.outcome == 'success'
-        run: |
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"✅ PR 테스트 성공 & main 머지 완료\",
-                \"color\": 3066993,
-                \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
-                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
-                  {\"name\": \"Lint\", \"value\": \"✅ 성공\", \"inline\": true},
-                  {\"name\": \"Build\", \"value\": \"✅ 성공\", \"inline\": true}
-                ],
-                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
-              }]
-            }" \
-            ${{ secrets.DISCORD_WEBHOOK }}
 
       - name: Fail workflow if checks failed
         if: |
           steps.lint.outcome == 'failure' ||
-          steps.build.outcome == 'failure' ||
-          steps.merge.outcome == 'failure'
+          steps.build.outcome == 'failure'
         run: exit 1
