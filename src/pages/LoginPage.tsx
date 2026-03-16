@@ -17,6 +17,7 @@ export function LoginPage() {
   } = useMutation({
     mutationFn: login,
     onSuccess: (res) => {
+      // [test] 26.03.16
       // [TEMP] 26.03.11
       // if (res.statusCode === 200) {
       localStorage.setItem('accessToken', res.data.accessToken)
