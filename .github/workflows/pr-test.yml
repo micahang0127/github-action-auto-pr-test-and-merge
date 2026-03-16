@@ -133,6 +133,7 @@ jobs:
                 \"fields\": [
                   {\"name\": \"브랜치\", \"value\": \"$BRANCH_NAME\", \"inline\": true},
                   {\"name\": \"PR\", \"value\": \"[#$PR_NUMBER]($PR_URL)\", \"inline\": true},
+                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
                   {\"name\": \"Lint\", \"value\": \"$LINT_STATUS\", \"inline\": true},
                   {\"name\": \"Build\", \"value\": \"$BUILD_STATUS\", \"inline\": true}
                 ],
@@ -205,6 +206,7 @@ jobs:
                 \"fields\": [
                   {\"name\": \"브랜치\", \"value\": \"$BRANCH_NAME\", \"inline\": true},
                   {\"name\": \"PR\", \"value\": \"[#$PR_NUMBER]($PR_URL)\", \"inline\": true},
+                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
                   {\"name\": \"Lint\", \"value\": \"✅ 성공\", \"inline\": true},
                   {\"name\": \"Build\", \"value\": \"✅ 성공\", \"inline\": true}
                 ],

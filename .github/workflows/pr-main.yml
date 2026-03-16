@@ -1,9 +1,9 @@
-name: PR Test & Coverage (main)
+name: Auto PR Create (dev → main)
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - dev
 
 permissions:
   contents: write
@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -38,6 +40,30 @@ jobs:
         id: build
         run: pnpm build
         continue-on-error: true
+
+      - name: Create or get PR
+        id: pr
+        run: |
+          BRANCH_NAME="dev"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq '.[0].number // empty')
+          if [ -z "$EXISTING_PR" ]; then
+            PR_URL=$(gh pr create \
+              --title "PR: $BRANCH_NAME" \
+              --body-file .github/pull_request_template.md \
+              --base main \
+              --head "$BRANCH_NAME")
+            PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          else
+            PR_NUMBER="$EXISTING_PR"
+            PR_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url')
+          fi
+
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
 
       - name: Comment on PR (Failure)
         if: |
@@ -73,7 +99,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ github.event.pull_request.number }},
+              issue_number: ${{ env.PR_NUMBER }},
               body: comment
             });
 
@@ -88,9 +114,33 @@ jobs:
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: ${{ github.event.pull_request.number }},
+              pull_number: ${{ env.PR_NUMBER }},
               state: 'closed'
             });
+
+      - name: Discord 알림 (실패)
+        if: |
+          steps.lint.outcome == 'failure' ||
+          steps.build.outcome == 'failure'
+        run: |
+          LINT_STATUS="${{ steps.lint.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
+          BUILD_STATUS="${{ steps.build.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"❌ PR 테스트 실패\",
+                \"color\": 15158332,
+                \"fields\": [
+                  {\"name\": \"브랜치\", \"value\": \"$BRANCH_NAME\", \"inline\": true},
+                  {\"name\": \"PR\", \"value\": \"[#$PR_NUMBER]($PR_URL)\", \"inline\": true},
+                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                  {\"name\": \"Lint\", \"value\": \"$LINT_STATUS\", \"inline\": true},
+                  {\"name\": \"Build\", \"value\": \"$BUILD_STATUS\", \"inline\": true}
+                ],
+                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }" \
+            ${{ secrets.DISCORD_WEBHOOK }}
 
       - name: Comment on PR (Success)
         if: |
@@ -117,21 +167,21 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ github.event.pull_request.number }},
+              issue_number: ${{ env.PR_NUMBER }},
               body: comment
             });
 
-      - name: Verify PR is from dev to main
+      - name: Verify PR base is main
         if: |
           steps.lint.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
-          PR_HEAD=$(gh pr view ${{ github.event.pull_request.number }} --json headRefName --jq '.headRefName')
-          if [ "$PR_HEAD" != "dev" ]; then
-            echo "❌ Error: PR must be from dev branch, but got $PR_HEAD"
+          PR_BASE=$(gh pr view "$PR_NUMBER" --json baseRefName --jq '.baseRefName')
+          if [ "$PR_BASE" != "main" ]; then
+            echo "❌ Error: PR base is $PR_BASE, not main"
             exit 1
           fi
-          echo "✅ PR is from dev branch"
+          echo "✅ PR base is main"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -139,9 +189,31 @@ jobs:
         if: |
           steps.lint.outcome == 'success' &&
           steps.build.outcome == 'success'
-        run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
+        run: gh pr merge "$PR_NUMBER" --squash
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
+
+      - name: Discord 알림 (성공)
+        if: |
+          steps.lint.outcome == 'success' &&
+          steps.build.outcome == 'success'
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"✅ PR 테스트 성공 & main 머지 완료\",
+                \"color\": 3066993,
+                \"fields\": [
+                  {\"name\": \"브랜치\", \"value\": \"$BRANCH_NAME\", \"inline\": true},
+                  {\"name\": \"PR\", \"value\": \"[#$PR_NUMBER]($PR_URL)\", \"inline\": true},
+                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                  {\"name\": \"Lint\", \"value\": \"✅ 성공\", \"inline\": true},
+                  {\"name\": \"Build\", \"value\": \"✅ 성공\", \"inline\": true}
+                ],
+                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }" \
+            ${{ secrets.DISCORD_WEBHOOK }}
 
       - name: Fail workflow if checks failed
         if: |
