@@ -21,7 +21,7 @@ export function LoginPage() {
       // if (res.statusCode === 200) {
       localStorage.setItem('accessToken', res.data.accessToken)
       setLoggedIn(true)
-      navigate({ to: '/main' })
+      navigate(ㅇ{ to: '/main' })
       // }
     },
   })
