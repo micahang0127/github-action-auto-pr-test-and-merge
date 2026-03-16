@@ -19,7 +19,7 @@ export function LoginPage() {
     onSuccess: (res) => {
       // [TEMP] 26.03.11
       // if (res.statusCode === 200) {
-      localStorageㄷ.setItem('accessToken', res.data.accessToken)
+      localStorage.setItem('accessToken', res.data.accessToken)
       setLoggedIn(true)
       navigate({ to: '/main' })
       // }
