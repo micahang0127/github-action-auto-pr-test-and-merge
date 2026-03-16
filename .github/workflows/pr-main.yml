@@ -1,9 +1,10 @@
 name: Auto PR Create (dev → main)
 
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
     branches:
-      - dev
+      - main
 
 permissions:
   contents: write
@@ -41,42 +42,11 @@ jobs:
         run: pnpm build
         continue-on-error: true
 
-      - name: Create or get PR
-        id: pr
+      - name: Set PR variables
         run: |
-          BRANCH_NAME="dev"
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-
-          # open PR 먼저 확인
-          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base main --state open --json number --jq '.[0].number // empty')
-
-          if [ -z "$EXISTING_PR" ]; then
-            # closed PR 확인 (충돌로 닫힌 PR)
-            CLOSED_PR=$(gh pr list --head "$BRANCH_NAME" --base main --state closed --json number --jq '.[0].number // empty')
-
-            if [ -n "$CLOSED_PR" ]; then
-              # closed PR을 reopen
-              gh pr reopen "$CLOSED_PR"
-              PR_NUMBER="$CLOSED_PR"
-              PR_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url')
-            else
-              # 새 PR 생성
-              PR_URL=$(gh pr create \
-                --title "PR: $BRANCH_NAME" \
-                --body-file .github/pull_request_template.md \
-                --base main \
-                --head "$BRANCH_NAME")
-              PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
-            fi
-          else
-            PR_NUMBER="$EXISTING_PR"
-            PR_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url')
-          fi
-
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
-          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          echo "PR_URL=${{ github.event.pull_request.html_url }}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
 
       - name: Comment on PR (Failure)
         if: |
@@ -112,7 +82,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ env.PR_NUMBER }},
+              issue_number: ${{ github.event.pull_request.number }},
               body: comment
             });
 
@@ -127,7 +97,7 @@ jobs:
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: ${{ env.PR_NUMBER }},
+              pull_number: ${{ github.event.pull_request.number }},
               state: 'closed'
             });
 
@@ -144,8 +114,8 @@ jobs:
                 \"title\": \"❌ PR 테스트 실패\",
                 \"color\": 15158332,
                 \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"$BRANCH_NAME\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#$PR_NUMBER]($PR_URL)\", \"inline\": true},
+                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
+                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
                   {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
                   {\"name\": \"Lint\", \"value\": \"$LINT_STATUS\", \"inline\": true},
                   {\"name\": \"Build\", \"value\": \"$BUILD_STATUS\", \"inline\": true}
@@ -180,7 +150,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ env.PR_NUMBER }},
+              issue_number: ${{ github.event.pull_request.number }},
               body: comment
             });
 
@@ -190,8 +160,8 @@ jobs:
           steps.lint.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
-          PR_HEAD=$(gh pr view "$PR_NUMBER" --json headRefName --jq '.headRefName')
-          PR_BASE=$(gh pr view "$PR_NUMBER" --json baseRefName --jq '.baseRefName')
+          PR_HEAD=$(gh pr view "${{ github.event.pull_request.number }}" --json headRefName --jq '.headRefName')
+          PR_BASE=$(gh pr view "${{ github.event.pull_request.number }}" --json baseRefName --jq '.baseRefName')
 
           if [ "$PR_HEAD" != "dev" ]; then
             echo "❌ Error: PR head is $PR_HEAD, only dev is allowed"
@@ -213,7 +183,7 @@ jobs:
           steps.lint.outcome == 'success' &&
           steps.build.outcome == 'success' &&
           steps.verify.outcome == 'success'
-        run: gh pr merge "$PR_NUMBER" --squash
+        run: gh pr merge "${{ github.event.pull_request.number }}" --squash
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.PR_CREATE }}
@@ -247,7 +217,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ env.PR_NUMBER }},
+              issue_number: ${{ github.event.pull_request.number }},
               body: comment
             });
 
@@ -263,7 +233,7 @@ jobs:
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: ${{ env.PR_NUMBER }},
+              pull_number: ${{ github.event.pull_request.number }},
               state: 'closed'
             });
 
@@ -279,8 +249,8 @@ jobs:
                 \"title\": \"❌ Merge 충돌 - PR 닫힘\",
                 \"color\": 15158332,
                 \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"$BRANCH_NAME\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#$PR_NUMBER]($PR_URL)\", \"inline\": true},
+                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
+                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
                   {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
                   {\"name\": \"원인\", \"value\": \"dev → main merge 충돌\", \"inline\": false},
                   {\"name\": \"해결\", \"value\": \"충돌을 해결하고 dev에 다시 push하세요\", \"inline\": false}
@@ -302,8 +272,8 @@ jobs:
                 \"title\": \"✅ PR 테스트 성공 & main 머지 완료\",
                 \"color\": 3066993,
                 \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"$BRANCH_NAME\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#$PR_NUMBER]($PR_URL)\", \"inline\": true},
+                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
+                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
                   {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
                   {\"name\": \"Lint\", \"value\": \"✅ 성공\", \"inline\": true},
                   {\"name\": \"Build\", \"value\": \"✅ 성공\", \"inline\": true}
