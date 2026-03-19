@@ -13,7 +13,7 @@ export function LoginPage() {
   const setLoggedIn = useAuthStore((s) => s.setLoggedIn)
   const [form, setForm] = useState({ email: '', password: '' })
   const [ivPending, setIvPending] = useState(false)
-  const [ivError, setIvError] = useState<string | null>(null)
+  const [ivErrord, setIvError] = useState<string | null>(null)
   const [ivSuccess, setIvSuccess] = useState(false)
 
   const {
