@@ -17,8 +17,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "ci:check": "pnpm format:check && pnpm type-check && pnpm lint && pnpm test",
-    "ci:check:fix": "pnpm format && pnpm lint:fix && pnpm type-check && pnpm test",
+    "ci:check": "pnpm format:check && pnpm type-check && pnpm lint && pnpm test && pnpm build",
+    "ci:check:fix": "pnpm format && pnpm lint:fix && pnpm type-check && pnpm test && pnpm build",
     "preview": "vite preview"
   },
   "dependencies": {

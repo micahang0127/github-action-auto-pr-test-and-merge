@@ -70,6 +70,9 @@ jobs:
           echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
           echo "PR_URL=${{ github.event.pull_request.html_url }}" >> $GITHUB_ENV
           echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
+          echo "PR_TITLE<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.pull_request.title }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Comment on PR (Failure)
         if: |
@@ -146,7 +149,8 @@ jobs:
 
           FIELDS=$(jq -n \
             --arg branch "${{ env.BRANCH_NAME }}" \
-            --arg pr    "[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})" \
+            --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
+            --arg pr_url "${{ env.PR_URL }}" \
             --arg actor "${{ github.actor }}" \
             --arg format "$FORMAT_STATUS" \
             --arg lint  "$LINT_STATUS" \
@@ -154,7 +158,7 @@ jobs:
             --arg build "$BUILD_STATUS" \
             '[
               {"name": "브랜치",  "value": $branch, "inline": true},
-              {"name": "PR",      "value": $pr,     "inline": true},
+              {"name": "PR",      "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
               {"name": "작성자",  "value": $actor,  "inline": true},
               {"name": "Format",  "value": $format, "inline": true},
               {"name": "Lint",    "value": $lint,   "inline": true},
@@ -263,23 +267,31 @@ jobs:
           steps.unit_test.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"✅ [LAB-MANAGER-FRONT] PR 테스트 성공 & dev 머지 완료\",
-                \"color\": 3066993,
-                \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
-                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
-                  {\"name\": \"Format\", \"value\": \"✅ 성공\", \"inline\": true},
-                  {\"name\": \"Lint\", \"value\": \"✅ 성공\", \"inline\": true},
-                  {\"name\": \"Test\", \"value\": \"✅ 성공\", \"inline\": true},
-                  {\"name\": \"Build\", \"value\": \"✅ 성공\", \"inline\": true}
+          PAYLOAD=$(jq -n \
+            --arg branch "${{ env.BRANCH_NAME }}" \
+            --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
+            --arg pr_url "${{ env.PR_URL }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              "embeds": [{
+                "title": "✅ [LAB-MANAGER-FRONT] PR 테스트 성공 & dev 머지 완료",
+                "color": 3066993,
+                "fields": [
+                  {"name": "브랜치", "value": $branch, "inline": true},
+                  {"name": "PR", "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
+                  {"name": "작성자", "value": $actor, "inline": true},
+                  {"name": "Format", "value": "✅ 성공", "inline": true},
+                  {"name": "Lint", "value": "✅ 성공", "inline": true},
+                  {"name": "Test", "value": "✅ 성공", "inline": true},
+                  {"name": "Build", "value": "✅ 성공", "inline": true}
                 ],
-                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                "url": $url
               }]
-            }" \
+            }')
+
+          curl -X POST -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
             ${{ secrets.DISCORD_PR_URL }}
 
       - name: Fail workflow if checks failed

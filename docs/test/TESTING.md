@@ -35,7 +35,7 @@ pnpm test:ui
 pnpm test:coverage
 ```
 
-### 파일 구조
+### 파일 구조 (초기 설정과 예시)
 
 ```
 src/
@@ -220,23 +220,7 @@ describe('User API', () => {
 })
 ```
 
----
 
-## 커버리지 목표
-
-현재 주요 모듈의 커버리지 상태:
-
-| 모듈 | 라인 커버리지 | 함수 커버리지 |
-|---|---|---|
-| `utils/date.ts` | 100% | 100% ✅ |
-| `utils/requireAuth.ts` | 100% | 100% ✅ |
-| `stores/authStore.ts` | 100% | 100% ✅ |
-| `api/index.ts` | 100% | 100% ✅ |
-| `api/user.ts` | 100% | 100% ✅ |
-| `components/layout/Header.tsx` | 100% | 100% ✅ |
-| `pages/LoginPage.tsx` | 93.75% | 90% |
-
----
 
 ## 외부 의존성 목킹하기
 
