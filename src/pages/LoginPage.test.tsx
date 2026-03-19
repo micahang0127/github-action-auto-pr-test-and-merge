@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { cleanup } from '@testing-library/react'
+import { cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,12 +53,14 @@ describe('LoginPage - 로그인 폼', () => {
     await userEvent.type(passwordInput, 'password123')
     await userEvent.click(submitButton)
 
-    // 토큰 저장 확인
-    expect(localStorage.getItem('accessToken')).toBe('new-token-123')
-    // store 업데이트 확인
-    expect(useAuthStore.getState().isLoggedIn).toBe(true)
-    // 네비게이션 확인
-    expect(mockNavigate).toHaveBeenCalledWith({ to: '/main' })
+    // 토큰 저장 확인 (비동기 지연을 고려하여 waitFor 사용)
+    await waitFor(() => {
+      expect(localStorage.getItem('accessToken')).toBe('new-token-123')
+      // store 업데이트 확인
+      expect(useAuthStore.getState().isLoggedIn).toBe(true)
+      // 네비게이션 확인
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/main' })
+    })
   })
 
   it('로그인 실패 시 에러 메시지를 표시한다', async () => {
@@ -87,10 +89,13 @@ describe('LoginPage - 로그인 폼', () => {
 
     // 에러 메시지 표시 확인
     expect(await screen.findByText(/이메일 또는 비밀번호가 틀렸습니다./)).toBeInTheDocument()
+
     // 토큰이 저장되지 않아야 함
-    expect(localStorage.getItem('accessToken')).toBeNull()
-    // 네비게이션이 호출되지 않아야 함
-    expect(mockNavigate).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(localStorage.getItem('accessToken')).toBeNull()
+      // 네비게이션이 호출되지 않아야 함
+      expect(mockNavigate).not.toHaveBeenCalled()
+    })
   })
 
   it('로그인 중에는 버튼이 disabled 상태다', async () => {

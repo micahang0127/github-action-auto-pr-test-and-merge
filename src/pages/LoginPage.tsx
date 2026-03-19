@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { confirmIdentityVerification } from '../api/auth'
+import type { LoginData } from '../api/user'
 // import { login } from '../api/user'
 import { useAuthStore } from '../stores/authStore'
 
@@ -20,14 +21,16 @@ export function LoginPage() {
     isPending,
     error: mutError,
   } = useMutation({
-    // [TEMP] 로그인 API 미연동으로 mutationFn 임시 처리 26.03.19 
+    // [TEMP] 로그인 API 미연동으로 mutationFn 임시 처리 26.03.19
     // mutationFn: login,
-    mutationFn: async (vars: typeof form) => {
+    mutationFn: async (vars: typeof form): Promise<{ data: LoginData }> => {
+      // 테스트에서 '로그인 중' 상태(isPending)를 확인할 수 있도록 약간의 지연을 줍니다.
+      await new Promise((resolve) => setTimeout(resolve, 50))
       // 테스트를 위해 특정 이메일 입력 시 실패하도록 처리
       if (vars.email === 'wrong@test.com') {
         throw new Error('이메일 또는 비밀번호가 틀렸습니다.')
       }
-      return { data: { accessToken: 'new-token-123' } } as any
+      return { data: { accessToken: 'new-token-123' } }
     },
     onSuccess: (res) => {
       // [TEMP] 26.03.11
@@ -38,7 +41,6 @@ export function LoginPage() {
       // }
     },
   })
-
   const errorMessages = mutError instanceof Error ? [mutError.message] : []
 
   const handleIdentityVerification = async () => {
