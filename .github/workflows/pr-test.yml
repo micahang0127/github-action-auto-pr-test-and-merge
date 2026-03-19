@@ -226,9 +226,25 @@ jobs:
               {"name": "커버리지 상세", "value": $cov, "inline": false}
             ]')
 
+          # 각 단계별 에러 로그 추가 함수 로직
+          if [ "${{ steps.format.outcome }}" = "failure" ] && [ -s "/tmp/format_output.txt" ]; then
+            MSG=$(tail -c 500 "/tmp/format_output.txt")
+            FIELDS=$(echo "$FIELDS" | jq --arg msg "$MSG" '. + [{"name": "Format 에러 요약", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
+          if [ "${{ steps.lint.outcome }}" = "failure" ] && [ -s "/tmp/lint_output.txt" ]; then
+            MSG=$(tail -c 500 "/tmp/lint_output.txt")
+            FIELDS=$(echo "$FIELDS" | jq --arg msg "$MSG" '. + [{"name": "Lint 에러 요약", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
           if [ "${{ steps.unit_test.outcome }}" = "failure" ] && [ -s "/tmp/test_output.txt" ]; then
             MSG=$(tail -c 500 "/tmp/test_output.txt")
             FIELDS=$(echo "$FIELDS" | jq --arg msg "$MSG" '. + [{"name": "Test 에러 요약", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
+          if [ "${{ steps.build.outcome }}" = "failure" ] && [ -s "/tmp/build_output.txt" ]; then
+            MSG=$(tail -c 500 "/tmp/build_output.txt")
+            FIELDS=$(echo "$FIELDS" | jq --arg msg "$MSG" '. + [{"name": "Build 에러 요약", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
           fi
 
           PAYLOAD=$(jq -n \
