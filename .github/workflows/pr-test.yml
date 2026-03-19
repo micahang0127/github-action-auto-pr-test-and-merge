@@ -53,9 +53,60 @@ jobs:
         id: unit_test
         run: |
           set -o pipefail
-          pnpm test --run 2>&1 | tee /tmp/test_output.txt
+          pnpm test:coverage --run 2>&1 | tee /tmp/test_output.txt
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
+
+      - name: Extract Coverage Summary
+        if: always() && steps.unit_test.outcome != 'skipped'
+        id: coverage_data
+        run: |
+          if [ -f "coverage/coverage-summary.json" ]; then
+            PCT=$(jq -r '.total.statements.pct' coverage/coverage-summary.json)
+            LINES=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+            BRANCH=$(jq -r '.total.branches.pct' coverage/coverage-summary.json)
+            FUNCS=$(jq -r '.total.functions.pct' coverage/coverage-summary.json)
+            echo "pct=$PCT" >> $GITHUB_OUTPUT
+            echo "lines=$LINES" >> $GITHUB_OUTPUT
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+            echo "funcs=$FUNCS" >> $GITHUB_OUTPUT
+            
+            # 커버리지 수준에 따른 색상 결정 (Discord용)
+            if (( $(echo "$PCT > 80" | bc -l) )); then COLOR=3066993; # Green
+            elif (( $(echo "$PCT > 50" | bc -l) )); then COLOR=15105570; # Orange
+            else COLOR=15158332; # Red
+            fi
+            echo "color=$COLOR" >> $GITHUB_OUTPUT
+          else
+            echo "pct=0" >> $GITHUB_OUTPUT
+            echo "color=15158332" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare Report for Deployment
+        if: always() && steps.unit_test.outcome != 'skipped'
+        run: |
+          mkdir -p public-report
+          # Vitest HTML 리포트 이동 (reporters: ['html'] 설정시 생성되는 폴더)
+          if [ -d "html" ]; then cp -r html/* public-report/; fi
+          # 커버리지 리포트 이동
+          mkdir -p public-report/coverage
+          if [ -d "coverage" ]; then cp -r coverage/* public-report/coverage/; fi
+
+      - name: Deploy to GitHub Pages (PR Preview)
+        if: always() && steps.unit_test.outcome != 'skipped'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public-report
+          destination_dir: pr-${{ github.event.pull_request.number }}
+          keep_files: true
+
+      - name: Set Report URL
+        if: always() && steps.unit_test.outcome != 'skipped'
+        run: |
+          # GitHub Pages URL 구성: https://<owner>.github.io/<repo>/pr-<number>/
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-${{ github.event.pull_request.number }}/"
+          echo "REPORT_URL=$REPORT_URL" >> $GITHUB_ENV
 
       - name: Build project
         id: build
@@ -102,13 +153,18 @@ jobs:
 
             const comment = `## ❌ PR 검사 실패
 
-            다음 항목 중 일부가 실패했습니다. 코드를 수정한 후 다시 커밋해주세요.
+            테스트가 실패하여 PR이 자동으로 닫혔습니다. 상세 리포트를 확인하여 수정해주세요.
 
             | 항목 | 상태 |
             |------|------|
             ${failedChecks.join('\n')}
 
-            [상세 로그 확인](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            ### 📊 리포트 확인
+            - [✅ 테스트 UI 리포트](${{ env.REPORT_URL }})
+            - [📈 커버리지 상세](${{ env.REPORT_URL }}coverage/)
+            - [🛠 Actions 로그](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            **Coverage 요약:** ${{ steps.coverage_data.outputs.pct }}% (Lines: ${{ steps.coverage_data.outputs.lines }}%)
             `;
 
             await github.rest.issues.createComment({
@@ -156,51 +212,47 @@ jobs:
             --arg lint  "$LINT_STATUS" \
             --arg test  "$TEST_STATUS" \
             --arg build "$BUILD_STATUS" \
+            --arg cov   "${{ steps.coverage_data.outputs.pct }}%" \
+            --arg report_url "${{ env.REPORT_URL }}" \
             '[
               {"name": "브랜치",  "value": $branch, "inline": true},
               {"name": "PR",      "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
               {"name": "작성자",  "value": $actor,  "inline": true},
-              {"name": "Format",  "value": $format, "inline": true},
-              {"name": "Lint",    "value": $lint,   "inline": true},
-              {"name": "Test",    "value": $test,   "inline": true},
-              {"name": "Build",   "value": $build,  "inline": true}
+              {"name": "Test 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
+              {"name": "커버리지", "value": $cov, "inline": true},
+              {"name": "Status", "value": ("Format: "+$format+"\nLint: "+$lint+"\nTest: "+$test+"\nBuild: "+$build), "inline": false}
             ]')
 
-          # 에러 로그 추가 함수
+          # 에러 로그 추가 (생략 가능하면 생략하거나 짧게 요약)
           add_error_log() {
             local step_name=$1
             local file_path=$2
             local outcome=$3
             if [ "$outcome" = "failure" ] && [ -s "$file_path" ]; then
-              local msg=$(tail -c 1000 "$file_path")
+              local msg=$(tail -c 500 "$file_path")
               FIELDS=$(echo "$FIELDS" | jq \
-                --arg name "$step_name 에러" \
+                --arg name "$step_name 에러 요약" \
                 --arg msg "$msg" \
                 '. + [{"name": $name, "value": ("```\n" + $msg + "\n```"), "inline": false}]')
             fi
           }
 
-          add_error_log "Format" "/tmp/format_output.txt" "${{ steps.format.outcome }}"
-          add_error_log "Lint" "/tmp/lint_output.txt" "${{ steps.lint.outcome }}"
           add_error_log "Test" "/tmp/test_output.txt" "${{ steps.unit_test.outcome }}"
-          add_error_log "Build" "/tmp/build_output.txt" "${{ steps.build.outcome }}"
 
           PAYLOAD=$(jq -n \
             --argjson fields "$FIELDS" \
             --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
               "embeds": [{
-                "title": "❌ [LAB-MANAGER-FRONT] PR 테스트 실패 및 자동 닫힘",
-                "description": "테스트가 실패하여 PR이 자동으로 닫혔습니다. 수정한 후 다시 PR을 생성해주세요.",
+                "title": "❌ [PR 테스트 실패] " + "${{ env.PR_TITLE }}",
+                "description": "테스트가 실패하여 PR이 자동으로 닫혔습니다. 상세 리포트를 확인해주세요.",
                 "color": 15158332,
                 "fields": $fields,
                 "url": $url
               }]
             }')
 
-          curl -X POST -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            ${{ secrets.DISCORD_PR_URL }}
+          curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" ${{ secrets.DISCORD_PR_URL }}
 
       - name: Comment on PR (Success)
         if: |
@@ -214,17 +266,13 @@ jobs:
           script: |
             const comment = `## ✅ 모든 검사 통과
 
-            | 항목 | 상태 |
-            |------|------|
-            | Formatting | ✅ Success |
-            | Linting | ✅ Success |
-            | Unit Test | ✅ Success |
-            | Build | ✅ Success |
+            모든 테스트와 빌드가 성공했습니다! 자동으로 머지됩니다.
 
-            모든 검사가 통과했습니다! 🎉
-            자동으로 dev 브랜치로 merge됩니다.
+            ### 📊 리포트 확인
+            - [✅ 테스트 UI 리포트](${{ env.REPORT_URL }})
+            - [📈 커버리지 상세](${{ env.REPORT_URL }}coverage/)
 
-            [상세 로그 확인](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            **Total Coverage:** ${{ steps.coverage_data.outputs.pct }}%
             `;
 
             await github.rest.issues.createComment({
@@ -272,27 +320,27 @@ jobs:
             --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
             --arg pr_url "${{ env.PR_URL }}" \
             --arg actor "${{ github.actor }}" \
+            --arg cov   "${{ steps.coverage_data.outputs.pct }}%" \
+            --arg report_url "${{ env.REPORT_URL }}" \
+            --arg color "${{ steps.coverage_data.outputs.color }}" \
             --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
               "embeds": [{
-                "title": "✅ [LAB-MANAGER-FRONT] PR 테스트 성공 & dev 머지 완료",
-                "color": 3066993,
+                "title": "✅ [PR 테스트 성공] " + $pr_title,
+                "description": "모든 검사를 통과하여 dev 브랜치로 머지되었습니다.",
+                "color": ($color | tonumber),
                 "fields": [
                   {"name": "브랜치", "value": $branch, "inline": true},
                   {"name": "PR", "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
                   {"name": "작성자", "value": $actor, "inline": true},
-                  {"name": "Format", "value": "✅ 성공", "inline": true},
-                  {"name": "Lint", "value": "✅ 성공", "inline": true},
-                  {"name": "Test", "value": "✅ 성공", "inline": true},
-                  {"name": "Build", "value": "✅ 성공", "inline": true}
+                  {"name": "커버리지", "value": $cov, "inline": true},
+                  {"name": "Test 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true}
                 ],
                 "url": $url
               }]
             }')
 
-          curl -X POST -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            ${{ secrets.DISCORD_PR_URL }}
+          curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" ${{ secrets.DISCORD_PR_URL }}
 
       - name: Fail workflow if checks failed
         if: |

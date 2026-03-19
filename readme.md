@@ -60,8 +60,10 @@ pnpm ci:check
 - **형식**: `feature/#{redmine번호}-{기능명}`
 - **예시**: `feature/#123-login-api`
 
+<br>
+
 ### 2️⃣ Commit 컨벤션 및 Redmine 연동
-커밋 메시지는 반드시 **[키워드]**와 **[레드마인 이슈번호]**를 포함해야 합니다.
+커밋 메시지는 반드시 **키워드**와 **레드마인 이슈번호**를 포함해야 합니다.
 - **형식**: `feat: 기능 설명 refs #{redmine번호}`
 - **예시**: <br>
 `feat: 로그인 기능 구현 refs #5` <br>
@@ -69,6 +71,7 @@ pnpm ci:check
 `fix: 비밀번호 변경 버그 수정 refs #5` <br>
 `update: 로그인 기능 구현 완료 closes  #5` <br>
 
+<br>
 
 | 키워드 | 의미 | 예시 |
 | :--- | :--- | :--- |
@@ -80,6 +83,9 @@ pnpm ci:check
 | **refactor** | 코드 구조 개선 | `refactor: fetch 함수 리팩토링 refs #127` |
 | **test** | 테스트 코드 추가 | `test: 유효성 검사 테스트 추가 refs #128` |
 | **chore** | 설정, 패키지 관리 | `chore: 라이브러리 업데이트 refs #129` |
+
+<br>
+
 
 ### 3️⃣ (필수) Push 전 사전 테스트 진행
 코드 안정성을 위해 원격 저장소에 Push 하기 전, 로컬에서 모든 검증을 통과해야 합니다.
@@ -93,17 +99,19 @@ $ pnpm ci:check:fix
 **🚨 `pnpm ci:check`가 통과된 경우에만 "feature/**" 브랜치에 push 합니다.**
 
 ### 4️⃣ (필수) dev 브랜치 Merge 규칙
-- **`dev` 브랜치로의 Merge 는 오직 Pull Request(PR)를 통해서만 가능합니다.**
+- **`dev` 브랜치로의 Merge 는 오직 Pull Request (PR)를 통해서만 가능합니다.**
 - **직접 Push 금지 ❌**
 - **사전 작업**: `pnpm ci:check`가 로컬에서 모두 통과된 상태여야 합니다.
 - **중요**: `dev` 브랜치는 반드시 PR을 통해서만 merge 될 수 있으며, 오직 `feature/**` 브랜치에서만 `dev`를 대상으로 PR을 생성할 수 있습니다.
+
+<br>
 
 ### 5️⃣ (필수) main 브랜치 관리
 - **`main` 브랜치는 프로덕션 배포용 (live) 브랜치입니다.**
 - 반드시 `dev` -> `main` 방향으로 PR을 생성하여 merge를 진행합니다.
 - 직접 수정이나 직접 merge는 절대 금지됩니다.
 
-<br>
+<br><br>
 
 ## 🔄 협업 가이드
 
@@ -117,6 +125,8 @@ $ pnpm ci:check:fix
 | **Hooks / 유틸 / 함수** | camelCase | `useAuth.ts`, `formatDate.ts` |
 | **스타일 파일** | camelCase | `index.css` |
 
+<br>
+
 ### ✅ PR 체크리스트
 PR을 생성하기 전에 아래 항목을 최종 확인하세요:
 - [ ] `pnpm ci:check`를 통해 모든 검증을 통과했는가?
@@ -124,7 +134,8 @@ PR을 생성하기 전에 아래 항목을 최종 확인하세요:
 - [ ] 불필요한 `console.log`나 디버그 코드를 제거했는가?
 - [ ] PR 제목에 레드마인 번호와 작업 내용이 명확히 포함되었는가?
 
-<br>
+
+<br><br>
 
 ## 🛠 기술 상세 스택
 
