@@ -85,9 +85,7 @@ jobs:
         if: always() && steps.unit_test.outcome != 'skipped'
         run: |
           mkdir -p public-report
-          # Vitest HTML 리포트 이동 (reporters: ['html'] 설정시 생성되는 폴더)
           if [ -d "html" ]; then cp -r html/* public-report/; fi
-          # 커버리지 리포트 이동
           mkdir -p public-report/coverage
           if [ -d "coverage" ]; then cp -r coverage/* public-report/coverage/; fi
 
@@ -103,8 +101,9 @@ jobs:
       - name: Set Report URL
         if: always() && steps.unit_test.outcome != 'skipped'
         run: |
-          # GitHub Pages URL 구성: https://<owner>.github.io/<repo>/pr-<number>/
-          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-${{ github.event.pull_request.number }}/"
+          # 저장소 이름을 소문자로 변환 (GitHub Pages URL은 소문자 기준)
+          REPO_NAME_LOW=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${REPO_NAME_LOW}/pr-${{ github.event.pull_request.number }}/"
           echo "REPORT_URL=$REPORT_URL" >> $GITHUB_ENV
 
       - name: Build project
@@ -202,6 +201,8 @@ jobs:
           TEST_STATUS="${{ steps.unit_test.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
           BUILD_STATUS="${{ steps.build.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
 
+          COV_DETAIL="Statements: ${{ steps.coverage_data.outputs.pct }}%\nBranches: ${{ steps.coverage_data.outputs.branch }}%\nFunctions: ${{ steps.coverage_data.outputs.funcs }}%\nLines: ${{ steps.coverage_data.outputs.lines }}%"
+
           FIELDS=$(jq -n \
             --arg branch "${{ env.BRANCH_NAME }}" \
             --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
@@ -211,18 +212,20 @@ jobs:
             --arg lint  "$LINT_STATUS" \
             --arg test  "$TEST_STATUS" \
             --arg build "$BUILD_STATUS" \
-            --arg cov   "${{ steps.coverage_data.outputs.pct }}%" \
+            --arg cov   "$COV_DETAIL" \
             --arg report_url "${{ env.REPORT_URL }}" \
             '[
               {"name": "브랜치",  "value": $branch, "inline": true},
               {"name": "PR",      "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
               {"name": "작성자",  "value": $actor,  "inline": true},
+              {"name": "Format",  "value": $format, "inline": true},
+              {"name": "Lint",    "value": $lint,   "inline": true},
+              {"name": "Test",    "value": $test,   "inline": true},
+              {"name": "Build",   "value": $build,  "inline": true},
               {"name": "Test 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
-              {"name": "커버리지", "value": $cov, "inline": true},
-              {"name": "Status", "value": ("Format: "+$format+"\nLint: "+$lint+"\nTest: "+$test+"\nBuild: "+$build), "inline": false}
+              {"name": "커버리지 상세", "value": $cov, "inline": false}
             ]')
 
-          # 에러 로그 추가
           if [ "${{ steps.unit_test.outcome }}" = "failure" ] && [ -s "/tmp/test_output.txt" ]; then
             MSG=$(tail -c 500 "/tmp/test_output.txt")
             FIELDS=$(echo "$FIELDS" | jq --arg msg "$MSG" '. + [{"name": "Test 에러 요약", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
@@ -305,14 +308,30 @@ jobs:
           steps.unit_test.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
-          PAYLOAD=$(jq -n \
+          COV_DETAIL="Statements: ${{ steps.coverage_data.outputs.pct }}%\nBranches: ${{ steps.coverage_data.outputs.branch }}%\nFunctions: ${{ steps.coverage_data.outputs.funcs }}%\nLines: ${{ steps.coverage_data.outputs.lines }}%"
+
+          FIELDS=$(jq -n \
             --arg branch "${{ env.BRANCH_NAME }}" \
             --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
-            --arg pure_title "${{ env.PR_TITLE }}" \
             --arg pr_url "${{ env.PR_URL }}" \
             --arg actor "${{ github.actor }}" \
-            --arg cov   "${{ steps.coverage_data.outputs.pct }}%" \
+            --arg cov   "$COV_DETAIL" \
             --arg report_url "${{ env.REPORT_URL }}" \
+            '[
+              {"name": "브랜치",  "value": $branch, "inline": true},
+              {"name": "PR",      "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
+              {"name": "작성자",  "value": $actor,  "inline": true},
+              {"name": "Format",  "value": "✅ 성공", "inline": true},
+              {"name": "Lint",    "value": "✅ 성공", "inline": true},
+              {"name": "Test",    "value": "✅ 성공", "inline": true},
+              {"name": "Build",   "value": "✅ 성공", "inline": true},
+              {"name": "Test 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
+              {"name": "커버리지 상세", "value": $cov, "inline": false}
+            ]')
+
+          PAYLOAD=$(jq -n \
+            --argjson fields "$FIELDS" \
+            --arg pure_title "${{ env.PR_TITLE }}" \
             --arg color "${{ steps.coverage_data.outputs.color }}" \
             --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
@@ -320,13 +339,7 @@ jobs:
                 "title": "✅ [PR 테스트 성공] \($pure_title)",
                 "description": "모든 검사를 통과하여 dev 브랜치로 머지되었습니다.",
                 "color": ($color | tonumber),
-                "fields": [
-                  {"name": "브랜치", "value": $branch, "inline": true},
-                  {"name": "PR", "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
-                  {"name": "작성자", "value": $actor, "inline": true},
-                  {"name": "커버리지", "value": $cov, "inline": true},
-                  {"name": "Test 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true}
-                ],
+                "fields": $fields,
                 "url": $url
               }]
             }')
