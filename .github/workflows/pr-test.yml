@@ -313,6 +313,7 @@ jobs:
           FIELDS=$(jq -n \
             --arg branch "${{ env.BRANCH_NAME }}" \
             --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
+            --arg pure_title "${{ env.PR_TITLE }}" \
             --arg pr_url "${{ env.PR_URL }}" \
             --arg actor "${{ github.actor }}" \
             --arg cov   "$COV_DETAIL" \
