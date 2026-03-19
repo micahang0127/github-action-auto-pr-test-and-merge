@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '') as string
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +13,18 @@ export interface ApiResponse<T> {
   statusCode: number
   data: T
   error: string[]
+}
+
+// ─── Error Types ──────────────────────────────────────────────────────────────
+
+class ApiError extends Error {
+  statusCode: number
+
+  constructor(message: string, statusCode: number) {
+    super(message)
+    this.statusCode = statusCode
+    Object.setPrototypeOf(this, ApiError.prototype)
+  }
 }
 
 // ─── Token ───────────────────────────────────────────────────────────────────
@@ -38,9 +50,18 @@ async function request<T>(
       headers,
       ...(body !== undefined && { body: JSON.stringify(body) }),
     })
-    return (await res.json()) as ApiResponse<T>
-  } catch {
-    return { statusCode: 500, data: {} as T, error: ['네트워크 오류가 발생했습니다.'] }
+    const json = (await res.json()) as ApiResponse<T>
+
+    if (res.ok && json.statusCode === 200) {
+      return json
+    }
+
+    // 에러 발생 시 에러 객체를 던짐
+    const errorMessage = json.error?.[0] || '알 수 없는 오류가 발생했습니다.'
+    throw new ApiError(errorMessage, json.statusCode)
+  } catch (err) {
+    if (err instanceof Error) throw err
+    throw new Error('네트워크 오류가 발생했습니다.')
   }
 }
 

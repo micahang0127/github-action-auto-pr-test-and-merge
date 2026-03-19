@@ -1,3 +1,5 @@
+## [미사용] 사용 시, Test 필요, PR (dev -> main) 생성 해도 Gihub Action이 실행되지 않느 이슈 있음  26..03.16
+
 name: PR Test & Coverage (main)
 
 on:
@@ -32,11 +34,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Formatting
+        id: format
+        run: |
+          set -o pipefail
+          pnpm format:check 2>&1 | tee /tmp/format_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
       - name: Run linter
         id: lint
         run: |
           set -o pipefail
           pnpm lint 2>&1 | tee /tmp/lint_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Run Unit Tests
+        id: unit_test
+        run: |
+          set -o pipefail
+          pnpm test --run 2>&1 | tee /tmp/test_output.txt
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
@@ -53,17 +71,24 @@ jobs:
           echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
           echo "PR_URL=${{ github.event.pull_request.html_url }}" >> $GITHUB_ENV
           echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
+          echo "PR_TITLE<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.pull_request.title }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Comment on PR (Failure)
         if: |
+          steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
+          steps.unit_test.outcome == 'failure' ||
           steps.build.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const results = {
+              'Formatting': '${{ steps.format.outcome }}',
               'Linting': '${{ steps.lint.outcome }}',
+              'Unit Test': '${{ steps.unit_test.outcome }}',
               'Build': '${{ steps.build.outcome }}'
             };
 
@@ -71,18 +96,20 @@ jobs:
             Object.entries(results).forEach(([check, outcome]) => {
               if (outcome === 'failure') {
                 failedChecks.push(`| ${check} | ❌ Failed |`);
+              } else {
+                failedChecks.push(`| ${check} | ✅ Success |`);
               }
             });
 
-            const comment = `## ❌ 검사 실패
+            const comment = `## ❌ PR 검사 실패
 
-            다음 항목에서 실패했습니다. 코드를 수정한 후 다시 커밋해주세요.
+            다음 항목 중 일부가 실패했습니다. 코드를 수정한 후 다시 커밋해주세요.
 
             | 항목 | 상태 |
             |------|------|
             ${failedChecks.join('\n')}
 
-            [전체 결과 보기](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [상세 로그 확인](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             `;
 
             await github.rest.issues.createComment({
@@ -94,7 +121,9 @@ jobs:
 
       - name: Close PR (Failure)
         if: |
+          steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
+          steps.unit_test.outcome == 'failure' ||
           steps.build.outcome == 'failure'
         uses: actions/github-script@v7
         with:
@@ -109,49 +138,61 @@ jobs:
 
       - name: Discord 알림 (실패)
         if: |
+          steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
+          steps.unit_test.outcome == 'failure' ||
           steps.build.outcome == 'failure'
         run: |
+          FORMAT_STATUS="${{ steps.format.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
           LINT_STATUS="${{ steps.lint.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
+          TEST_STATUS="${{ steps.unit_test.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
           BUILD_STATUS="${{ steps.build.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
 
           # 기본 필드 구성
           FIELDS=$(jq -n \
             --arg branch "${{ env.BRANCH_NAME }}" \
-            --arg pr    "[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})" \
+            --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
+            --arg pr_url "${{ env.PR_URL }}" \
             --arg actor "${{ github.actor }}" \
+            --arg format "$FORMAT_STATUS" \
             --arg lint  "$LINT_STATUS" \
+            --arg test  "$TEST_STATUS" \
             --arg build "$BUILD_STATUS" \
             '[
               {"name": "브랜치",  "value": $branch, "inline": true},
-              {"name": "PR",      "value": $pr,     "inline": true},
+              {"name": "PR",      "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
               {"name": "작성자",  "value": $actor,  "inline": true},
+              {"name": "Format",  "value": $format, "inline": true},
               {"name": "Lint",    "value": $lint,   "inline": true},
+              {"name": "Test",    "value": $test,   "inline": true},
               {"name": "Build",   "value": $build,  "inline": true}
             ]')
 
-          # Lint 에러 메시지 조건부 추가
-          if [ "${{ steps.lint.outcome }}" = "failure" ] && [ -s /tmp/lint_output.txt ]; then
-            LINT_MSG=$(head -c 1016 /tmp/lint_output.txt)
-            FIELDS=$(echo "$FIELDS" | jq \
-              --arg msg "$LINT_MSG" \
-              '. + [{"name": "Lint 에러", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
-          fi
+          # 에러 로그 추가 함수
+          add_error_log() {
+            local step_name=$1
+            local file_path=$2
+            local outcome=$3
+            if [ "$outcome" = "failure" ] && [ -s "$file_path" ]; then
+              local msg=$(tail -c 1000 "$file_path")
+              FIELDS=$(echo "$FIELDS" | jq \
+                --arg name "$step_name 에러" \
+                --arg msg "$msg" \
+                '. + [{"name": $name, "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+            fi
+          }
 
-          # Build 에러 메시지 조건부 추가
-          if [ "${{ steps.build.outcome }}" = "failure" ] && [ -s /tmp/build_output.txt ]; then
-            BUILD_MSG=$(head -c 1016 /tmp/build_output.txt)
-            FIELDS=$(echo "$FIELDS" | jq \
-              --arg msg "$BUILD_MSG" \
-              '. + [{"name": "Build 에러", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
-          fi
+          add_error_log "Format" "/tmp/format_output.txt" "${{ steps.format.outcome }}"
+          add_error_log "Lint" "/tmp/lint_output.txt" "${{ steps.lint.outcome }}"
+          add_error_log "Test" "/tmp/test_output.txt" "${{ steps.unit_test.outcome }}"
+          add_error_log "Build" "/tmp/build_output.txt" "${{ steps.build.outcome }}"
 
           PAYLOAD=$(jq -n \
             --argjson fields "$FIELDS" \
             --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
               "embeds": [{
-                "title": "❌ PR 테스트 실패",
+                "title": "❌ [LAB-MANAGER-FRONT] PR 테스트 실패",
                 "color": 15158332,
                 "fields": $fields,
                 "url": $url
@@ -160,11 +201,13 @@ jobs:
 
           curl -H "Content-Type: application/json" \
             -d "$PAYLOAD" \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+            "${{ secrets.DISCORD_PR_URL }}"
 
       - name: Comment on PR (Success)
         if: |
+          steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
+          steps.unit_test.outcome == 'success' &&
           steps.build.outcome == 'success'
         uses: actions/github-script@v7
         with:
@@ -174,14 +217,16 @@ jobs:
 
             | 항목 | 상태 |
             |------|------|
+            | Formatting | ✅ Success |
             | Linting | ✅ Success |
+            | Unit Test | ✅ Success |
             | Build | ✅ Success |
 
             모든 검사가 통과했습니다! 🎉
 
             자동으로 main 브랜치로 merge됩니다.
 
-            [전체 결과 보기](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [상세 로그 확인](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             `;
 
             await github.rest.issues.createComment({
@@ -193,7 +238,9 @@ jobs:
 
       - name: Verify PR is from dev to main
         if: |
+          steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
+          steps.unit_test.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
           PR_HEAD=$(gh pr view ${{ github.event.pull_request.number }} --json headRefName --jq '.headRefName')
@@ -207,7 +254,9 @@ jobs:
 
       - name: Auto merge PR to main (Success)
         if: |
+          steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
+          steps.unit_test.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
         env:
@@ -215,28 +264,42 @@ jobs:
 
       - name: Discord 알림 (성공)
         if: |
+          steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
+          steps.unit_test.outcome == 'success' &&
           steps.build.outcome == 'success'
         run: |
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"✅ PR 테스트 성공 & main 머지 완료\",
-                \"color\": 3066993,
-                \"fields\": [
-                  {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
-                  {\"name\": \"PR\", \"value\": \"[#${{ env.PR_NUMBER }}](${{ env.PR_URL }})\", \"inline\": true},
-                  {\"name\": \"작성자\", \"value\": \"${{ github.actor }}\", \"inline\": true},
-                  {\"name\": \"Lint\", \"value\": \"✅ 성공\", \"inline\": true},
-                  {\"name\": \"Build\", \"value\": \"✅ 성공\", \"inline\": true}
+          PAYLOAD=$(jq -n \
+            --arg branch "${{ env.BRANCH_NAME }}" \
+            --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
+            --arg pr_url "${{ env.PR_URL }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              "embeds": [{
+                "title": "✅ [LAB-MANAGER-FRONT] PR 테스트 성공 & main 머지 완료",
+                "color": 3066993,
+                "fields": [
+                  {"name": "브랜치", "value": $branch, "inline": true},
+                  {"name": "PR", "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
+                  {"name": "작성자", "value": $actor, "inline": true},
+                  {"name": "Format", "value": "✅ 성공", "inline": true},
+                  {"name": "Lint", "value": "✅ 성공", "inline": true},
+                  {"name": "Test", "value": "✅ 성공", "inline": true},
+                  {"name": "Build", "value": "✅ 성공", "inline": true}
                 ],
-                \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                "url": $url
               }]
-            }" \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+            }')
+
+          curl -X POST -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "${{ secrets.DISCORD_PR_URL }}"
 
       - name: Fail workflow if checks failed
         if: |
+          steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
+          steps.unit_test.outcome == 'failure' ||
           steps.build.outcome == 'failure'
         run: exit 1

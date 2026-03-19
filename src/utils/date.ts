@@ -1,4 +1,10 @@
 import dayjs from 'dayjs'
+import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc'
+
+// dayjs 플러그인 로드
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const KST = 'Asia/Seoul'
 

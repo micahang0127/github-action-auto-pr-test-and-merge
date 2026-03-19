@@ -29,7 +29,8 @@ export function MainPage() {
             formatDate: <span className="font-mono text-blue-600">{formatDate(sampleUtcDate)}</span>
           </p>
           <p className="text-sm text-gray-600">
-            formatDateTime: <span className="font-mono text-blue-600">{formatDateTime(sampleUtcDate)}</span>
+            formatDateTime:{' '}
+            <span className="font-mono text-blue-600">{formatDateTime(sampleUtcDate)}</span>
           </p>
         </div>
 
