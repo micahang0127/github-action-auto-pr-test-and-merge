@@ -1,3 +1,5 @@
+## [미사용] 사용 시, Test 필요, PR (dev -> main) 생성 해도 Gihub Action이 실행되지 않느 이슈 있음  26..03.16
+
 name: PR Test & Coverage (main)
 
 on:
@@ -151,7 +153,7 @@ jobs:
             --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
               "embeds": [{
-                "title": "❌ PR 테스트 실패",
+                "title": "❌ [LAB-MANAGER-FRONT] PR 테스트 실패",
                 "color": 15158332,
                 "fields": $fields,
                 "url": $url
@@ -160,7 +162,7 @@ jobs:
 
           curl -H "Content-Type: application/json" \
             -d "$PAYLOAD" \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+            "${{ secrets.DISCORD_PR_URL }}"
 
       - name: Comment on PR (Success)
         if: |
@@ -221,7 +223,7 @@ jobs:
           curl -H "Content-Type: application/json" \
             -d "{
               \"embeds\": [{
-                \"title\": \"✅ PR 테스트 성공 & main 머지 완료\",
+                \"title\": \"✅ [LAB-MANAGER-FRONT] PR 테스트 성공 & main 머지 완료\",
                 \"color\": 3066993,
                 \"fields\": [
                   {\"name\": \"브랜치\", \"value\": \"${{ env.BRANCH_NAME }}\", \"inline\": true},
@@ -233,7 +235,7 @@ jobs:
                 \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
               }]
             }" \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+            "${{ secrets.DISCORD_PR_URL }}"
 
       - name: Fail workflow if checks failed
         if: |

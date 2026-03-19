@@ -34,8 +34,7 @@ export const login = (body: LoginRequest): Promise<ApiResponse<LoginData>> =>
   api.post<LoginData>('/auth/login', body)
 
 /** 회원탈퇴 */
-export const withdraw = (): Promise<ApiResponse<boolean>> =>
-  api.delete('/auth/withdraw')
+export const withdraw = (): Promise<ApiResponse<boolean>> => api.delete('/auth/withdraw')
 
 /** 비밀번호 변경 */
 export const changePassword = (body: ChangePasswordRequest): Promise<ApiResponse<boolean>> =>

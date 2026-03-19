@@ -9,7 +9,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'src/routeTree.gen.ts']),
+  globalIgnores(['dist', 'src/routeTree.gen.ts', 'coverage', '**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx', 'src/test/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -32,10 +32,6 @@ export default defineConfig([
       },
     },
     rules: {
-      // Import 정렬
-      'simple-import-sort/imports': 'error',
-      'simple-import-sort/exports': 'error',
-
       // 미사용 import/vars
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': ['warn', {
@@ -44,25 +40,19 @@ export default defineConfig([
       }],
       '@typescript-eslint/no-unused-vars': 'off',
 
-      // TypeScript
+      // TypeScript - 기본 규칙만 유지
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unsafe-assignment': 'warn',
-      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-misused-promises': 'warn',
-      '@typescript-eslint/only-throw-error': 'warn',
 
-      // Airbnb 스타일
-      'no-console': 'warn', // console 사용 경고
-      'no-param-reassign': 'warn',
-      'prefer-destructuring': 'warn',
-      'arrow-body-style': ['warn', 'as-needed'],
-      'prefer-arrow-callback': 'warn',
-      'object-shorthand': 'warn',
+      // Import 정렬 (필수 유지)
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
 
-      // 접근성
-      'jsx-a11y/alt-text': 'warn',
-      'jsx-a11y/anchor-is-valid': 'warn',
+      // 엄격한 규칙들은 off (중소 회사 중간 수준)
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/no-misused-promises': 'off',
+      '@typescript-eslint/only-throw-error': 'off',
+      '@typescript-eslint/consistent-type-imports': 'off',
     },
   },
 ])
