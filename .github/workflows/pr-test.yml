@@ -56,6 +56,12 @@ jobs:
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
+      - name: Generate Allure Report
+        if: always() && steps.unit_test.outcome != 'skipped'
+        run: |
+          # allure-commandline을 사용하여 결과를 리포트로 변환
+          npx allure generate allure-results -o allure-report --clean
+
       - name: Extract Coverage Summary
         if: always() && steps.unit_test.outcome != 'skipped'
         id: coverage_data
@@ -85,7 +91,11 @@ jobs:
         if: always() && steps.unit_test.outcome != 'skipped'
         run: |
           mkdir -p public-report
+          # Vitest HTML 리포트 (기존)
           if [ -d "html" ]; then cp -r html/* public-report/; fi
+          # Allure 리포트
+          if [ -d "allure-report" ]; then cp -r allure-report/* public-report/; fi
+          # 커버리지 리포트
           mkdir -p public-report/coverage
           if [ -d "coverage" ]; then cp -r coverage/* public-report/coverage/; fi
 
@@ -95,7 +105,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public-report
-          destination_dir: pr-${{ github.event.pull_request.number }}
+          destination_dir: pr/${{ github.event.pull_request.number }}
           keep_files: true
 
       - name: Set Report URL
@@ -103,7 +113,7 @@ jobs:
         run: |
           # 저장소 이름을 소문자로 변환 (GitHub Pages URL은 소문자 기준)
           REPO_NAME_LOW=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-          REPORT_URL="https://${{ github.repository_owner }}.github.io/${REPO_NAME_LOW}/pr-${{ github.event.pull_request.number }}/"
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${REPO_NAME_LOW}/pr/${{ github.event.pull_request.number }}/"
           echo "REPORT_URL=$REPORT_URL" >> $GITHUB_ENV
 
       - name: Build project
@@ -253,7 +263,7 @@ jobs:
             --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
               "embeds": [{
-                "title": "❌ [PR 테스트 실패] \($pr_title)",
+                "title": "❌ [LAB-MANAGER-FRONT] \($pr_title)",
                 "description": "테스트가 실패하여 PR이 자동으로 닫혔습니다. 상세 리포트를 확인해주세요.",
                 "color": 15158332,
                 "fields": $fields,
@@ -353,7 +363,7 @@ jobs:
             --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{
               "embeds": [{
-                "title": "✅ [PR 테스트 성공] \($pure_title)",
+                "title": "✅ [LAB-MANAGER-FRONT] \($pure_title)",
                 "description": "모든 검사를 통과하여 dev 브랜치로 머지되었습니다.",
                 "color": ($color | tonumber),
                 "fields": $fields,
