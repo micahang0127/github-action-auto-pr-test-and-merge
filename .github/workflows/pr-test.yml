@@ -91,11 +91,9 @@ jobs:
         if: always() && steps.unit_test.outcome != 'skipped'
         run: |
           mkdir -p public-report
-          # Vitest HTML 리포트 (기존)
-          if [ -d "html" ]; then cp -r html/* public-report/; fi
           # Allure 리포트
           if [ -d "allure-report" ]; then cp -r allure-report/* public-report/; fi
-          # 커버리지 리포트
+          # 커버리지 상세 (HTML)
           mkdir -p public-report/coverage
           if [ -d "coverage" ]; then cp -r coverage/* public-report/coverage/; fi
 
