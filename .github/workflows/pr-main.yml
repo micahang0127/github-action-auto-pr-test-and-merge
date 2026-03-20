@@ -94,11 +94,9 @@ jobs:
         if: always() && steps.unit_test.outcome != 'skipped'
         run: |
           mkdir -p public-report
-          # Vitest HTML 리포트 (기존)
-          if [ -d "html" ]; then cp -r html/* public-report/; fi
           # Allure 리포트
           if [ -d "allure-report" ]; then cp -r allure-report/* public-report/; fi
-          # 커버리지 리포트
+          # 커버리지 상세 (HTML)
           mkdir -p public-report/coverage
           if [ -d "coverage" ]; then cp -r coverage/* public-report/coverage/; fi
 
@@ -235,7 +233,7 @@ jobs:
               {"name": "Lint",    "value": $lint,   "inline": true},
               {"name": "Test",    "value": $test,   "inline": true},
               {"name": "Build",   "value": $build,  "inline": true},
-              {"name": "Test 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
+              {"name": "Allure 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
               {"name": "커버리지 상세", "value": $cov, "inline": false}
             ]')
 
@@ -353,7 +351,7 @@ jobs:
               {"name": "Lint",    "value": "✅ 성공", "inline": true},
               {"name": "Test",    "value": "✅ 성공", "inline": true},
               {"name": "Build",   "value": "✅ 성공", "inline": true},
-              {"name": "Test 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
+              {"name": "Allure 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
               {"name": "커버리지 상세", "value": $cov, "inline": false}
             ]')
 

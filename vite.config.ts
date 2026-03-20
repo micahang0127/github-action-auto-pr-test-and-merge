@@ -9,7 +9,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    reporters: ['default', 'html', 'allure-vitest/reporter'],
+    reporters: ['default', 'allure-vitest/reporter'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],
