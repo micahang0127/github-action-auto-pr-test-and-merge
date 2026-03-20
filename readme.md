@@ -1,6 +1,6 @@
 # KP Lab-Manager FRONT
 
-> React, Vite, SWC 기반의 프로젝트
+> React, Vite, SWC 기반의 프로젝트 
 
 <br>
 
