@@ -1,5 +1,6 @@
 import * as matchers from '@testing-library/jest-dom/matchers'
 import { expect } from 'vitest'
+import 'allure-vitest/setup'
 
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
