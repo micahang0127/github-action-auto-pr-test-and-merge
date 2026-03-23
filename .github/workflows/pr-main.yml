@@ -112,9 +112,8 @@ jobs:
       - name: Set Report URL
         if: always() && steps.unit_test.outcome != 'skipped'
         run: |
-          # 저장소 이름을 소문자로 변환 (GitHub Pages URL은 소문자 기준)
-          REPO_NAME_LOW=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-          REPORT_URL="https://${{ github.repository_owner }}.github.io/${REPO_NAME_LOW}/pr/main/${{ github.event.pull_request.number }}/"
+          # 저장소 이름의 대소문자를 유지하여 URL 생성 (GitHub Pages는 대소문자 구분)
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr/main/${{ github.event.pull_request.number }}/"
           echo "REPORT_URL=$REPORT_URL" >> $GITHUB_ENV
 
       - name: Build project
