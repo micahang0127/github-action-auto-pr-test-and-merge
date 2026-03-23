@@ -205,6 +205,59 @@ $ pnpm ci:check:fix
 
 <br><br>
 
+## 🔒 배포 전 보안 체크
+
+### 📋 Security Audit 검증
+
+이 프로젝트는 보안을 강화하기 위해 GitHub Actions에서 **자동으로 Security Audit을 실행**합니다.
+
+#### 🔄 검증 프로세스
+
+| 단계 | 실행 시점 | 내용 |
+|------|---------|------|
+| **로컬 개발** | 매일 | lint, format, test (빠른 피드백) |
+| **PR 단계** | 자동 | **Security Audit** + 모든 검사 |
+| **배포 전** | 수동 (권장) | 최종 보안 점검 |
+
+#### ✅ 배포 전 최종 보안 점검 (권장)
+
+배포하기 전에 다음 명령어로 보안 취약점을 최종 확인하세요:
+
+```bash
+# 보안 취약점 스캔 (High 심각도 이상)
+pnpm audit --audit-level=high
+```
+
+**예상 결과:**
+```
+No known vulnerabilities found  ✅
+```
+
+만약 취약점이 발견되면:
+
+```bash
+# 자동 수정 시도
+pnpm audit fix
+
+# 또는 특정 패키지만 업데이트
+pnpm update <package-name>
+```
+
+#### 📌 주의사항
+
+- **로컬에서는** lint, format, test만 자동 실행 (빠른 개발 경험)
+- **PR 단계에서는** Security Audit을 포함한 모든 검사 실행 (최종 검증)
+- **배포 전에는** `pnpm audit --audit-level=high`로 수동 확인 권장
+- Security Audit 실패 시 PR이 자동으로 닫힙니다
+
+#### 🛡️ 보안 정책
+
+자세한 보안 구현 현황과 향후 진행 항목은 아래를 참고하세요:
+- [보안 구현 현황](./docs/security/implemented.md) - Phase 1 완료 항목
+- [보안 추후 진행](./docs/security/future-work.md) - Phase 2-3 계획
+
+<br><br>
+
 ## 🔄 협업 가이드
 
 ### 📌 파일명 규칙 (Code Convention)
