@@ -1,318 +1,277 @@
 # 🔐 Security - Phase 2 & 3 (추후 진행 항목)
 
 **마지막 업데이트:** 2026-03-23
-**배포 환경:** AWS CloudFront (예정)
+**배포 환경:** AWS CloudFront + S3 + WAF
+**팀 규모:** 1 인하우스 + 2-3 외주
 
 ---
 
 ## 📌 개요
 
-Phase 1에서 즉시 적용 가능한 보안 항목들을 완료했습니다.
-이제 백엔드 협의와 배포 인프라 설정이 필요한 Phase 2, 3 항목들을 정리합니다.
+Phase 1 (즉시 적용 항목)이 완료되었습니다.
+이제 백엔드 협의와 배포 인프라 설정이 필요한 Phase 2, 3 항목들을 진행합니다.
 
 ---
 
-## Phase 2️⃣ - 백엔드 협의 필요
+## Phase 2️⃣ - 백엔드 협의 필요 | **우선순위: P0**
 
-### 2-1. 인증 토큰 저장 방식 변경 (핵심)
+### 📊 핵심 이슈 요약
 
-**현황:**
-- 현재: `localStorage`에 JWT Access Token 저장 (XSS 취약)
-- 문제: XSS 공격 시 토큰 직접 탈취 가능
+| 항목 | 현황 | 목표 | 우선순위 | 예상 일정 |
+|------|------|------|---------|---------|
+| 인증 토큰 저장 방식 | localStorage (XSS 취약) | httpOnly Cookie + 메모리 | P0 | 1주 |
+| Refresh Token | 미구현 | `/auth/refresh` API | P0 | 1주 |
+| Silent Refresh | 미구현 | 401 시 자동 갱신 | P0 | 3일 |
+| CORS 정책 | 미설정 | 도메인 화이트리스트 | P0 | 2-3일 |
 
-**권장 방식:**
+---
 
-#### Option A: httpOnly Cookie + Memory (권장) ✅
+### 2-1. 인증 토큰 저장 방식 변경 ⭐ **가장 중요**
+
+#### 문제
+- **현재:** `localStorage`에 JWT 저장
+- **위험:** XSS 공격 시 JavaScript로 직접 탈취 가능
+
+#### 해결책: httpOnly Cookie + 메모리 조합 (권장)
+
+| 구분 | 현재 방식 ❌ | 권장 방식 ✅ |
+|------|-----------|----------|
+| **Access Token** | localStorage (노출됨) | 브라우저 메모리 변수 (페이지 새로고침 시 초기화) |
+| **Refresh Token** | 없음 | httpOnly + Secure + SameSite=Strict 쿠키 |
+| **XSS 탈취 위험** | 높음 | 낮음 (JS에서 접근 불가) |
+| **자동 전송** | 수동 (`Authorization` 헤더) | 자동 (쿠키 자동 포함) |
+| **CSRF 방어** | 불필요 | SameSite로 자동 방어 |
+
+#### 백엔드에서 구현할 사항
+
 ```
-Access Token
-  ├─ 저장 위치: 브라우저 메모리 (변수)
-  ├─ 특징: XSS로 탈취 불가능
-  └─ 단점: 페이지 새로고침 시 초기화 → Refresh Token으로 복구
-
-Refresh Token
-  ├─ 저장 위치: httpOnly + Secure 쿠키
-  ├─ 특징: JavaScript에서 접근 불가 (자동 전송)
-  └─ SameSite=Strict로 CSRF 방어
-```
-
-**백엔드에서 구현할 사항:**
-```
-1. POST /auth/refresh 엔드포인트 (필수)
+☑ 1. POST /auth/refresh 엔드포인트 구현
    - Request: Refresh Token (쿠키 자동 전송)
-   - Response: 새 Access Token + 200 OK
+   - Response: { accessToken: "new_token", statusCode: 200 }
 
-2. 로그인 응답에 Refresh Token 설정
-   Set-Cookie: refreshToken=<token>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
+☑ 2. 로그인 응답에 Refresh Token 쿠키 설정
+   - Set-Cookie: refreshToken=<token>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 
-3. 로그아웃 시 서버 측 Refresh Token 무효화
-   - 데이터베이스에서 토큰 제거 또는 blacklist 처리
+☑ 3. 로그아웃 시 서버 측 Refresh Token 무효화
+   - DB에서 토큰 제거 또는 blacklist 처리
 
-4. Access Token 만료 시간
-   - 짧게 설정 (15분 ~ 1시간) → 탈취 시 피해 최소화
-   - Refresh Token은 길게 설정 (7일 ~ 30일)
+☑ 4. 토큰 만료 정책 결정
+   - Access Token: 15분 ~ 1시간 (짧음 = 탈취 시 피해 최소화)
+   - Refresh Token: 7일 ~ 30일 (길음 = 사용자 편의성)
+
+☑ 5. CORS 설정
+   - origin: 'https://yourdomain.com'
+   - credentials: true (쿠키 포함)
 ```
 
-**프론트엔드 구현 계획:**
+#### 프론트엔드 구현 계획
+
 ```typescript
-// src/stores/authStore.ts 수정
+// src/stores/authStore.ts
 interface AuthState {
-  accessToken: string | null  // 메모리에만 저장 (localStorage 제거)
-  refreshAccessToken: () => Promise<void>  // 자동 갱신 함수
+  accessToken: string | null          // 메모리만 (localStorage 제거)
+  refreshAccessToken: () => Promise<void>
 }
 
-// src/api/index.ts 수정
+// src/api/index.ts
 // 401 응답 시 자동으로 refresh → 원래 요청 재시도
-async function request<T>(...) {
-  try {
-    const res = await fetch(...)
-  } catch (err) {
-    if (res.status === 401) {
-      await refreshAccessToken()  // 토큰 갱신
-      return request<T>(method, endpoint, body)  // 재시도
-    }
-  }
-}
 ```
 
-**예상 일정:**
-- 백엔드 API 설계: 1주
-- 프론트엔드 구현: 3일
-- 통합 테스트: 2일
-
----
-
-#### Option B: httpOnly Cookie만 사용 (간단)
-```
-Access Token
-  ├─ 저장 위치: httpOnly + Secure 쿠키
-  ├─ 특징: 자동 전송, JS 접근 불가
-  └─ 장점: 단순 구현
-
-단점:
-  - CSRF 방어 필요 (CSRF Token 추가 또는 SameSite=Strict)
-  - 토큰 갱신 로직 복잡도 증가
-```
-
-**권장하지 않음** (Option A가 더 안전)
+**예상 일정:** API 설계 1주 + 프론트 구현 3일 + 테스트 2일
 
 ---
 
 ### 2-2. CORS 정책 협의
 
-**현황:**
-- 프론트엔드: 특정 도메인으로 API 호출 예정
-- 백엔드: CORS 설정 필요
+#### 백엔드 설정 (예: Express.js)
 
-**백엔드에서 설정할 사항:**
+| 항목 | 설정값 | 이유 |
+|------|--------|------|
+| `origin` | `https://yourdomain.com` | 프로덕션 도메인만 허용 |
+| `credentials` | `true` | 쿠키/인증 정보 포함 허용 |
+| `methods` | `GET, POST, PUT, DELETE, PATCH` | 필요한 HTTP 메서드 |
+| `allowedHeaders` | `Content-Type, Authorization` | 요청 헤더 허용 |
+| `maxAge` | `86400` | Preflight 캐시 (1일) |
+
+#### 프론트엔드 Vite 설정 (개발 환경)
+
 ```javascript
-// Express.js 예시
-const cors = require('cors');
-
-app.use(cors({
-  origin: 'https://yourdomain.com',  // 프로덕션 도메인만
-  credentials: true,  // 쿠키/인증 정보 포함
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400  // preflight 캐시 시간 (1일)
-}));
-```
-
-**프론트엔드 설정:**
-
-#### 개발 환경 (Vite proxy)
-```typescript
 // vite.config.ts
-export default defineConfig({
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-        // 쿠키 자동 전송
-        credentials: 'include'
-      }
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://localhost:3000',
+      changeOrigin: true,
+      credentials: 'include'  // 쿠키 자동 전송
     }
   }
-})
+}
+
+// 효과: fetch('/api/users') → http://localhost:3000/users
 ```
 
-**효과:**
-- 개발 환경: CORS 에러 없음
-- API 호출: `fetch('/api/users')` → `http://localhost:3000/users`
-- 실제 백엔드 URL 소스 코드에 노출 최소화
+**기대 효과:**
+- ✅ 개발 환경: CORS 에러 없음
+- ✅ 백엔드 URL 소스 코드 노출 최소화
 
 ---
 
 ### 2-3. Silent Refresh 구현
 
-**개념:**
+#### 흐름도
+
 ```
-API 요청
-  ↓
-401 응답 (만료된 토큰)
-  ↓
-/auth/refresh 호출 (Refresh Token 사용)
-  ↓
-새 Access Token 획득
-  ↓
-원래 요청 자동 재시도
-  ↓
-성공 응답
-```
-
-**프론트엔드 구현:**
-```typescript
-// src/api/index.ts
-async function request<T>(method: string, endpoint: string, body?: unknown) {
-  const res = await fetch(...)
-
-  if (res.status === 401) {
-    // 토큰 갱신 시도
-    const refreshed = await refreshAccessToken()
-
-    if (refreshed) {
-      // 새 토큰으로 원래 요청 재시도
-      return request<T>(method, endpoint, body)
-    } else {
-      // Refresh 실패 → 로그아웃
-      logout()
-      throw redirect({ to: '/login' })
-    }
-  }
-}
-
-async function refreshAccessToken(): Promise<boolean> {
-  try {
-    const response = await fetch(`${BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include'  // 쿠키 자동 전송
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      useAuthStore.getState().setAccessToken(data.accessToken)
-      return true
-    }
-    return false
-  } catch {
-    return false
-  }
-}
+┌─────────────────────┐
+│  API 요청           │
+└──────────┬──────────┘
+           │
+           ▼
+   ┌───────────────┐
+   │ 응답 상태?    │
+   └───────┬───────┘
+           │
+    ┌──────┴──────┐
+    │             │
+    ▼ 200 OK      ▼ 401 Unauthorized
+  [성공]        [토큰 만료]
+    │             │
+    └─────┐       ├─► /auth/refresh 호출
+          │       │   (Refresh Token 사용)
+          │       │
+          │       ├─► 새 Access Token 획득
+          │       │   (메모리에 저장)
+          │       │
+          │       └─► 원래 요청 자동 재시도
+          │
+          └──────►[최종 응답]
 ```
 
-**효과:**
-- **사용자 경험 개선:** 인증 만료로 인한 에러 화면 표시 안 함
-- **자동 갱신:** 사용자 액션 없이 백그라운드에서 처리
-- **보안:** Refresh Token은 httpOnly이므로 JS에서 접근 불가
+#### 프론트엔드 구현 체크리스트
+
+- [ ] `src/api/index.ts`에 `refreshAccessToken()` 함수 추가
+- [ ] 401 응답 감지 시 자동 갱신 로직
+- [ ] 갱신 실패 시 로그아웃 처리
+- [ ] 갱신 중 중복 요청 방지 (race condition 처리)
+- [ ] 통합 테스트 (401 → refresh → 재시도 시뮬레이션)
+
+**기대 효과:**
+- ✅ 사용자 경험 개선 (에러 화면 표시 X)
+- ✅ 자동 갱신 (사용자 액션 불필요)
+- ✅ 보안 (Refresh Token은 httpOnly라 JS 접근 불가)
 
 ---
 
-### 2-4. PortOne 보안 설정 (현재)
+### 2-4. PortOne 보안 설정 (현재 상황)
 
-**현황:**
-- `VITE_PORTONE_STORE_ID`, `VITE_PORTONE_CHANNEL_KEY` 브라우저 노출
-- VITE_ 접두사 변수는 빌드 번들에 포함되므로 불가피
+#### 문제
+- `VITE_PORTONE_STORE_ID`, `VITE_PORTONE_CHANNEL_KEY`는 빌드 번들에 노출됨 (VITE_ 접두사)
+- 타사이트에서 키를 악용해 결제 도용 가능
 
-**필수 조치:**
-```
-PortOne 대시보드 설정
-  1. 결제 도메인 허용 목록 (Domain Whitelist)
-     → https://yourdomain.com 등록
-  2. 생성된 결제 건만 승인
-     → 타사이트에서의 키 오용 방지
-  3. 결제 금액 한도 설정 (선택)
-```
+#### 필수 대응 (PortOne 대시보드)
+
+| 설정 항목 | 상태 | 설정 내용 |
+|----------|------|---------|
+| 결제 도메인 화이트리스트 | ☑ 필수 | `https://yourdomain.com` 등록 |
+| 자동 승인 정책 | ☑ 권장 | 생성된 결제 건만 자동 승인 |
+| 결제 금액 한도 | ☐ 선택 | 예: 1회 최대 ₩5,000,000 |
+| IP 화이트리스트 | ☐ 선택 | 배포 서버 IP만 허용 |
 
 ---
 
-## Phase 3️⃣ - 배포 인프라 설정 (AWS CloudFront)
+## Phase 3️⃣ - AWS CloudFront 배포 설정 | **우선순위: P1-P2**
 
-### 3-1. HTTP 보안 응답 헤더 (CloudFront)
+### 📅 핵심 설정 항목
 
-**AWS CloudFront의 원본 응답 헤더 정책 (Origin Custom Headers):**
+| 항목 | 담당 | 우선순위 | 예상 일정 |
+|------|------|---------|---------|
+| HTTP 보안 응답 헤더 | DevOps | P1 | 2-3일 |
+| CSP (Content-Security-Policy) | DevOps | P1 | 2-3일 |
+| HTTPS / HSTS 설정 | DevOps | P1 | 1일 |
+| 소스맵 제어 | 프론트 | P2 | 1일 |
+| Gitleaks (Secret 스캔) | DevOps | P2 | 1일 |
+| Dependabot 자동화 | DevOps | P2 | 1일 |
+
+---
+
+### 3-1. HTTP 보안 응답 헤더
+
+#### CloudFront 설정: 응답 헤더 정책
+
+| 헤더 | 값 | 효과 |
+|------|-----|------|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` | HTTPS만 사용 (1년) |
+| `X-Content-Type-Options` | `nosniff` | MIME 타입 스니핑 방지 |
+| `X-Frame-Options` | `DENY` | iframe 임베딩 방지 (Clickjacking) |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Referrer 헤더 제어 |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | 기기 권한 제어 |
+
+#### 설정 방법
 
 ```
-HTTP/1.1
-Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(), microphone=(), geolocation=()
+1. CloudFront 배포 선택
+2. "응답 헤더 정책" 생성
+3. 사용자 정의 헤더로 위 항목 추가
+4. 배포에 연결
 ```
-
-**설정 방법:**
-1. CloudFront 배포 생성
-2. 원본 요청 정책 추가 → 사용자 정의 헤더 정책 생성
-3. 각 헤더를 "응답 헤더 정책"으로 구성
-4. 배포에 적용
-
-**각 헤더의 효과:**
-
-| 헤더 | 효과 | 예 |
-|------|------|-----|
-| `Strict-Transport-Security` | HTTPS만 사용 강제 (1년) | HSTS preload 등록 가능 |
-| `X-Content-Type-Options: nosniff` | MIME 타입 스니핑 방지 | JS 파일을 HTML로 실행 안 함 |
-| `X-Frame-Options: DENY` | iframe 임베딩 방지 | 다른 사이트에서 콘텐츠 삽입 불가 |
-| `Referrer-Policy` | Referrer 헤더 제어 | 외부 링크로 현재 URL 전달 안 함 |
-| `Permissions-Policy` | 기기 권한 제어 | 카메라, 마이크 등 접근 차단 |
 
 ---
 
 ### 3-2. Content-Security-Policy (CSP) 설정
 
-**프로덕션 배포 시 적용:**
+#### CSP 정책
 
 ```
-Content-Security-Policy:
-  default-src 'self';
-  script-src 'self';
-  style-src 'self' 'unsafe-inline';
-  connect-src 'self' https://api.yourdomain.com https://api.iamport.kr https://cdn.portone.io;
-  frame-src 'none';
-  object-src 'none';
-  base-uri 'self';
-  form-action 'self'
+default-src 'self';
+script-src 'self';
+style-src 'self' 'unsafe-inline';
+connect-src 'self' https://api.yourdomain.com https://api.iamport.kr https://cdn.portone.io;
+frame-src 'none';
+object-src 'none';
+base-uri 'self';
+form-action 'self'
 ```
 
-**설정 방법:**
+#### 설정 방법
+
+```
 1. CloudFront 배포 → 응답 헤더 정책
-2. 커스텀 헤더 추가: `Content-Security-Policy`
-3. 위 값 복사 및 적용
+2. 커스텀 헤더 추가: Content-Security-Policy
+3. 위 정책값 복사 후 적용
+```
 
-**주의:**
-- 개발 환경에서는 Vite HMR 때문에 CSP 비활성화
-- 프로덕션 배포 후에만 활성화
-- 서드파티 스크립트 추가 시 CSP 규칙도 함께 수정
+#### 주의사항
+
+| 환경 | CSP 상태 | 이유 |
+|------|---------|------|
+| **개발** | ❌ 비활성화 | Vite HMR이 CSP에 의해 차단됨 |
+| **프로덕션** | ✅ 활성화 | 배포 후 필수 |
+
+**서드파티 추가 시:** CSP 규칙도 함께 수정 필요 (예: Google Analytics 추가 → connect-src 수정)
 
 ---
 
 ### 3-3. HTTPS / HSTS 설정
 
-**CloudFront 설정:**
-```
-1. SSL/TLS 인증서
-   - AWS Certificate Manager (ACM)에서 인증서 발급
-   - CloudFront에 적용
+#### AWS Certificate Manager (ACM) 설정
 
-2. Viewer Protocol Policy
-   - "Redirect HTTP to HTTPS" 선택
-   → 모든 HTTP 요청을 HTTPS로 리디렉션
+| 단계 | 항목 | 상태 |
+|------|------|------|
+| 1 | SSL/TLS 인증서 발급 | ACM에서 무료 발급 |
+| 2 | CloudFront에 인증서 연결 | 배포 설정에 적용 |
+| 3 | Viewer Protocol Policy | "Redirect HTTP to HTTPS" 선택 |
+| 4 | HSTS Preload (선택) | `hstspreload.org`에 등록 |
 
-3. HSTS Preload (선택)
-   - Strict-Transport-Security 헤더에 preload 추가
-   - https://hstspreload.org에 등록
-   → 모든 브라우저에서 항상 HTTPS 사용
-```
+**효과:**
+- ✅ 모든 HTTP 요청 → HTTPS 자동 리디렉션
+- ✅ 브라우저가 항상 HTTPS 사용 강제
 
 ---
 
-### 3-4. 소스맵 제어
+### 3-4. 소스맵 제어 (프로덕션)
 
-**프로덕션 빌드 시 소스맵 비활성화:**
+#### vite.config.ts 설정
 
 ```typescript
-// vite.config.ts
 export default defineConfig({
   build: {
     sourcemap: import.meta.env.PROD ? false : true,  // 프로덕션에서만 비활성화
@@ -328,15 +287,15 @@ export default defineConfig({
 ```
 
 **효과:**
-- 프로덕션 빌드 시 `.map` 파일 생성 안 함
-- 브라우저에서 원본 소스 코드 확인 불가 (오류 추적 어려움)
-- Sentry 같은 에러 추적 도구 사용 시 별도 관리
+- ✅ 프로덕션에서 `.map` 파일 생성 안 함
+- ✅ 브라우저에서 원본 소스 코드 확인 불가
+- ⚠️ 오류 추적 어려움 → Sentry 등 에러 추적 도구 사용 권장
 
 ---
 
-### 3-5. Secret 스캔 자동화
+### 3-5. Secret 스캔 (Gitleaks)
 
-**`.github/workflows/` 에 추가:**
+#### .github/workflows/gitleaks.yml
 
 ```yaml
 name: Secret Scan
@@ -358,15 +317,15 @@ jobs:
 ```
 
 **효과:**
-- 커밋 시 자동으로 API 키, 비밀번호 등 스캔
-- 감지 시 CI 실패로 푸시 방지
-- 사고 예방 (한 번 커밋된 시크릿은 forever in git history)
+- ✅ 커밋 시 자동으로 API 키, 비밀번호 등 스캔
+- ✅ 감지 시 CI 실패 → 푸시 차단
+- ✅ "한 번 커밋된 시크릿은 영원히 git history에 남음" 방지
 
 ---
 
 ### 3-6. 의존성 자동 업데이트 (Dependabot)
 
-**`.github/dependabot.yml` 생성:**
+#### .github/dependabot.yml
 
 ```yaml
 version: 2
@@ -383,124 +342,158 @@ updates:
 ```
 
 **효과:**
-- 매주 월요일 새벽 자동으로 보안 패치 PR 생성
-- 중요 업데이트 우선 처리
-- 취약점 수정 자동화
+- ✅ 매주 자동으로 보안 패치 PR 생성
+- ✅ 취약점 수정 자동화
+- ✅ 팀에서 리뷰 후 병합
 
 ---
 
-## 📅 구현 로드맵
+## 📅 전체 구현 로드맵
 
-| 순번 | 항목 | 우선순위 | 예상 일정 | 담당자 |
-|------|------|---------|---------|--------|
-| 1 | 인증 토큰 방식 결정 | P0 | 1주 | 프론트 + 백엔드 |
-| 2 | Silent Refresh 구현 | P0 | 1주 | 프론트 + 백엔드 |
-| 3 | CORS 정책 협의 | P0 | 2-3일 | 백엔드 |
-| 4 | CloudFront 보안 헤더 | P1 | 2-3일 | DevOps |
-| 5 | CSP 설정 및 테스트 | P1 | 2-3일 | 프론트 |
-| 6 | HTTPS/HSTS 설정 | P1 | 1일 | DevOps |
-| 7 | Gitleaks 자동화 | P2 | 1일 | DevOps |
-| 8 | Dependabot 설정 | P2 | 1일 | DevOps |
+### Phase 2 (1주 + 1주)
+
+| 순번 | 항목 | 우선순위 | 담당 | 예상 일정 |
+|------|------|---------|------|---------|
+| 1 | 토큰 저장 방식 결정 | P0 | 프론트 + 백엔드 | 1주 (협의) |
+| 2 | `/auth/refresh` API 설계 | P0 | 백엔드 | 1주 |
+| 3 | Silent Refresh 구현 | P0 | 프론트 | 3일 |
+| 4 | CORS 정책 수립 | P0 | 백엔드 | 2-3일 |
+| 5 | 통합 테스트 (토큰 갱신) | P0 | 프론트 | 2일 |
+
+### Phase 3 (배포 전 1주)
+
+| 순번 | 항목 | 우선순위 | 담당 | 예상 일정 |
+|------|------|---------|------|---------|
+| 6 | CloudFront 보안 헤더 | P1 | DevOps | 2-3일 |
+| 7 | CSP 정책 작성 및 테스트 | P1 | DevOps | 2-3일 |
+| 8 | HTTPS/HSTS 설정 | P1 | DevOps | 1일 |
+| 9 | 소스맵 프로덕션 비활성화 | P2 | 프론트 | 1일 |
+| 10 | Gitleaks 워크플로우 | P2 | DevOps | 1일 |
+| 11 | Dependabot 설정 | P2 | DevOps | 1일 |
+| 12 | 보안 감사 (Mozilla Observatory) | P2 | DevOps | 1일 |
 
 ---
 
 ## 🔗 체크리스트
 
-### Phase 2 - 백엔드 협의
-- [ ] 토큰 저장 방식 최종 결정 (httpOnly Cookie + Memory)
-- [ ] `/auth/refresh` 엔드포인트 설계 완료
-- [ ] Refresh Token 만료 정책 결정 (7일? 30일?)
-- [ ] CORS 정책 문서 작성
-- [ ] 로그아웃 시 Refresh Token 무효화 정책 수립
-- [ ] 통합 테스트 환경 구성
+### Phase 2 - 백엔드 협의 진행
 
-### Phase 3 - 배포 설정
+**즉시 (이번주):**
+- [ ] 백엔드 팀과 인증 토큰 방식 협의 시작
+- [ ] `httpOnly Cookie + 메모리` 조합 방식 승인
+- [ ] API 설계 문서 작성 및 공유
+
+**API 설계:**
+- [ ] POST `/auth/refresh` 엔드포인트 스펙 정의
+- [ ] Refresh Token 만료 정책 (7일? 30일?)
+- [ ] CORS 정책 문서화
+- [ ] 로그아웃 시 토큰 무효화 방식 결정
+
+**개발 (2주):**
+- [ ] 백엔드: `/auth/refresh` 구현
+- [ ] 프론트: Silent Refresh 구현
+- [ ] 프론트: 중복 요청 방지 (race condition)
+- [ ] 통합 테스트 (401 → refresh → 재시도)
+
+---
+
+### Phase 3 - 배포 설정 진행
+
+**배포 1주 전:**
 - [ ] CloudFront 배포 생성
-- [ ] SSL/TLS 인증서 설정 (ACM)
+- [ ] ACM 인증서 설정
 - [ ] 보안 응답 헤더 정책 생성
-- [ ] CSP 정책 작성 및 검증
+- [ ] CSP 정책 검증 (개발 환경에서 테스트)
 - [ ] HSTS Preload 등록 고려
-- [ ] Gitleaks 워크플로우 추가
-- [ ] Dependabot 설정
-- [ ] 보안 감사 (Mozilla Observatory)
+
+**자동화 설정:**
+- [ ] Gitleaks 워크플로우 추가 및 테스트
+- [ ] Dependabot 설정 및 PR 수신 확인
+- [ ] 소스맵 프로덕션 비활성화 (vite.config.ts)
+
+**배포 후:**
+- [ ] 모니터링 설정 (에러 추적)
+- [ ] Mozilla Observatory 보안 감사
+- [ ] 정기 보안 패치 검토
+
+---
+
+## 🤝 백엔드 팀 커뮤니케이션
+
+### 이메일 템플릿
+
+**Subject:** 프론트엔드 보안 강화 - 백엔드 협의 필요
+
+```
+안녕하세요,
+
+프론트엔드에서 보안을 강화하려고 하는데, 다음 사항에 대해 백엔드 팀과 협의가 필요합니다:
+
+1️⃣ 인증 토큰 저장 방식 (가장 중요)
+   - 현재: localStorage에 JWT 저장 (XSS 취약)
+   - 권장: httpOnly Cookie + 메모리 조합
+   - 상세: docs/security/future-work.md 참고
+
+2️⃣ 필요한 API 엔드포인트
+   - POST /auth/refresh
+   - Request: Refresh Token (쿠키 자동 전송)
+   - Response: { accessToken: string, statusCode: 200 }
+
+3️⃣ CORS 정책
+   - 배포 도메인: https://yourdomain.com
+   - credentials: true (쿠키 포함)
+
+4️⃣ 기타
+   - Refresh Token 만료 정책 (권장: 7-30일)
+   - 로그아웃 시 서버 측 토큰 무효화 방식
+
+협의 일정을 잡을 수 있을까요?
+
+감사합니다!
+```
 
 ---
 
 ## 📚 참고 자료
 
-### 백엔드 협의
-- [RFC 6750 - OAuth 2.0 Bearer Token](https://tools.ietf.org/html/rfc6750)
-- [OWASP - Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
-- [httpOnly Cookies](https://owasp.org/www-community/attacks/csrf)
+### 인증 & 토큰
 
-### AWS CloudFront
-- [AWS CloudFront Security Headers](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/adding-headers-to-responses.html)
+- [OWASP - Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+- [RFC 6750 - OAuth 2.0 Bearer Token](https://tools.ietf.org/html/rfc6750)
+- [httpOnly Cookies & CSRF](https://owasp.org/www-community/attacks/csrf)
+
+### AWS & 배포
+
+- [AWS CloudFront 보안 헤더](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/adding-headers-to-responses.html)
 - [HSTS Preload List](https://hstspreload.org)
 
 ### 보안 헤더
+
 - [OWASP Secure Headers Project](https://secureheaders.com)
 - [Mozilla Observatory](https://observatory.mozilla.org)
+- [Security Headers](https://securityheaders.com)
 
-### 자동화
-- [Gitleaks Documentation](https://github.com/gitleaks/gitleaks)
+### 자동화 도구
+
+- [Gitleaks](https://github.com/gitleaks/gitleaks)
 - [GitHub Dependabot](https://docs.github.com/en/code-security/dependabot)
 
 ---
 
-## 🤝 팀 커뮤니케이션
+## ✨ 요약
 
-### 백엔드 팀에 전달할 사항
+**현재 진행 상황:**
+- ✅ Phase 1: 100% 완료 (프론트엔드 즉시 적용 항목)
+- ⏳ Phase 2: 백엔드 협의 필요 (토큰 저장 방식, Refresh Token)
+- ⏳ Phase 3: 배포 단계 (CloudFront 헤더, 자동화)
 
-**이메일 템플릿:**
-```
-Subject: 프론트엔드 보안 강화 - 백엔드 협의 필요
+**다음 우선순위:**
+1. **즉시 (이번주):** 백엔드 팀과 인증 토큰 방식 협의 시작
+2. **1주일:** Silent Refresh 기술 스펙 최종 결정
+3. **2주일:** 백엔드/프론트 구현 병행
+4. **배포 1주 전:** CloudFront 보안 설정 완료
 
-안녕하세요,
-
-프론트엔드에서 보안을 강화하려고 하는데, 다음 사항에 대해 백엔드 팀과 협의가 필요합니다:
-
-1. 인증 토큰 저장 방식
-   - 현재: localStorage에 JWT 저장
-   - 권장: httpOnly Cookie + Memory 조합
-   - 상세: docs/security/future-work.md 참조
-
-2. 필요한 API 엔드포인트
-   - POST /auth/refresh (Access Token 갱신)
-   - 응답: { accessToken: string }
-
-3. CORS 정책
-   - 배포 도메인: https://yourdomain.com
-   - credentials: true 필요
-
-4. 기타
-   - Refresh Token 만료 정책 (권장: 7일)
-   - 로그아웃 시 서버 측 토큰 무효화
-
-상세 내용은 첨부된 문서를 참조 부탁드립니다.
-```
-
----
-
-## 📞 체크리스트로 진행 관리
-
-> 다음 단계별로 체크리스트를 완료하며 진행하세요.
-
-### 즉시 (1주 내)
-- [ ] 백엔드 팀과 토큰 방식 협의
-- [ ] API 설계 문서 공유
-- [ ] 개발 시작 계획 수립
-
-### 개발 중 (2주)
-- [ ] 백엔드: `/auth/refresh` 구현
-- [ ] 프론트: Silent Refresh 구현
-- [ ] 통합 테스트
-
-### 배포 전 (1주)
-- [ ] DevOps: CloudFront 설정
-- [ ] 보안 감사 (Mozilla Observatory)
-- [ ] 침투 테스트 (선택)
-
-### 배포 후 (지속)
-- [ ] 모니터링 (에러 추적)
-- [ ] 정기 보안 패치
-- [ ] 의존성 업데이트 검토
+**팀 특성에 맞춘 일정:**
+- 외주 인력(2-3명)이 포함되므로 상세한 문서화 중요
+- 대면 기회가 적으므로 비동기 커뮤니케이션 강화
+- 예정된 기능(QR/바코드/이미지)은 Phase 2 후에 추가 권장
