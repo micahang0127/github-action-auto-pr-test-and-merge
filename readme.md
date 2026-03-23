@@ -30,7 +30,7 @@ pnpm install
 # 2. 로컬 개발 서버 실행
 pnpm dev
 ```
-
+ 
 <br>
 
 ### ⚠️ 중요: PR (Pull Request) 전 필수 체크사항
