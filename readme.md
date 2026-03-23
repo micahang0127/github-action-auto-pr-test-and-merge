@@ -30,24 +30,112 @@ pnpm install
 # 2. 로컬 개발 서버 실행
 pnpm dev
 ```
-
+ 
 <br>
 
 ### ⚠️ 중요: PR (Pull Request) 전 필수 체크사항
 
-다른 개발자와의 협업 및 안정적인 빌드를 위해,  
- **Push 및 PR을 진행하기 전에 반드시 아래 명령어를 통해 로컬 검증을 완료해야 합니다.**
+이 프로젝트는 **Husky**를 통해 Git Hook을 자동화하여, 코드 품질을 강제합니다.
+개발자가 별도의 검증 명령어를 실행할 필요 없이, 자동으로 검사가 수행됩니다.
+
+<br>
+
+#### 🔄 자동화된 검증 프로세스
+
+**1️⃣ Git Commit 시 - 커밋 메시지 검증 & 자동 포맷팅**
+
+```bash
+$ git commit -m "feat: 로그인 기능 추가 refs #123"
+```
+
+| 단계 | 역할 | 설명 |
+|------|------|------|
+| **pre-commit** | 자동 포맷팅 | Staged 파일들에 대해 `prettier`와 `eslint --fix` 자동 실행 |
+| **commit-msg** | 메시지 검증 | 커밋 메시지 형식 검사 (commitlint) |
+
+<br>
+
+**✅ 성공 케이스:**
+```bash
+# refs는 선택사항 (있어도 되고 없어도 됨)
+feat: 로그인 기능 추가
+test: 테스트 진행함
+update: 비밀번호 검증 강화 refs #124
+fix: 토큰 만료 버그 수정 refs #125
+docs: API 문서 작성
+
+# 레드마인 이슈와 연동할 때는 refs 포함 권장
+feat: 사용자 인증 추가 refs #123
+```
+
+**❌ 실패 케이스:**
+```bash
+Feat: 로그인 기능 추가          # ❌ 대문자 (소문자만 허용)
+awesome: 멋진 기능 추가         # ❌ 허용되지 않는 타입
+feat:                         # ❌ 설명 없음 (필수)
+기능 추가 refs #123           # ❌ 타입 없음 (필수)
+```
+
+<br>
+
+**허용되는 타입 (8가지):**
+
+| 타입 | 의미 | 예시 |
+|------|------|------|
+| **feat** | 새로운 기능 추가 | `feat: 로그인 API 구현` |
+| **update** | 기능 개선/수정 | `update: 비밀번호 검증 강화` |
+| **fix** | 버그 수정 | `fix: 토큰 만료 오류` |
+| **docs** | 문서만 수정 | `docs: API 문서 업데이트` |
+| **style** | 코드 스타일 수정 | `style: 들여쓰기 수정` |
+| **refactor** | 코드 구조 개선 | `refactor: 함수 분리` |
+| **test** | 테스트 코드 추가 | `test: 로그인 테스트 추가` |
+| **chore** | 설정, 패키지 관리 | `chore: 라이브러리 업데이트` |
+
+<br>
+<br>
+
+**2️⃣ Git Push 시 - 전체 CI 검사 자동 실행**
+
+```bash
+$ git push origin feature/...
+```
+
+Push 직전, `pre-push` 훅이 자동으로 실행되어 다음 검사를 수행합니다:
+
+```bash
+pnpm ci:check
+# = pnpm format:check       # 코드 포맷 확인
+#   && pnpm type-check      # TypeScript 타입 검사
+#   && pnpm lint            # ESLint 린트 검사
+#   && pnpm test            # 단위 테스트
+#   && pnpm build           # 빌드 가능 확인
+```
+
+**⚡ 효과:**
+- GitHub Actions CI와 동일한 검사를 Push 전에 로컬에서 미리 수행
+- CI 실패로 인한 PR 반려 방지
+- 팀의 코드 품질 표준 자동 준수
+
+<br>
+
+#### 📋 수동 검증 방법 (선택사항)
+
+자동 검증 외에도, 필요시 수동으로 검증할 수 있습니다:
 
 ```bash
 # 로컬 통합 검증 (Format, Type, Lint, Test, Build 체크)
 pnpm ci:check
+
+# 에러 발생 시 자동 수정 시도
+pnpm ci:check:fix
 ```
 
-- 만약 에러가 발생한다면, 아래 명령어를 통해 자동 수정을 시도할 수 있습니다.
-  ```bash
-  pnpm ci:check:fix
-  ```
-- **반드시 `pnpm ci:check`가 성공(Success)한 상태에서만 브랜치에 Push를 진행해 주세요.**
+<br>
+
+**💡 주의사항:**
+- **`pnpm install` 실행**: 팀원이 처음 설정할 때 자동으로 Husky 훅이 설치됩니다
+- **Commit 메시지 형식 준수**: 정확한 포맷이 아니면 커밋이 차단됩니다
+- **Push 전 자동 검사**: Pre-push 훅이 실패하면 Push가 차단되므로, 로컬에서 미리 수정하세요
 
 <br>
 
@@ -62,7 +150,22 @@ pnpm ci:check
 
 <br>
 
-### 2️⃣ Commit 컨벤션 및 Redmine 연동
+### 2️⃣ (필수) dev 브랜치 Merge 규칙
+- **`dev` 브랜치로의 Merge 는 오직 Pull Request (PR)를 통해서만 가능합니다.**
+- **직접 Push 금지 ❌**
+- **사전 작업**: `pnpm ci:check`가 로컬에서 모두 통과된 상태여야 합니다.
+- **중요**: `dev` 브랜치는 반드시 PR을 통해서만 merge 될 수 있으며, 오직 `feature/**` 브랜치에서만 `dev`를 대상으로 PR을 생성할 수 있습니다.
+
+<br>
+
+### 3️⃣ (필수) main 브랜치 관리
+- **`main` 브랜치는 프로덕션 배포용 (live) 브랜치입니다.**
+- 반드시 `dev` -> `main` 방향으로 PR을 생성하여 merge를 진행합니다.
+- 직접 수정이나 직접 merge는 절대 금지됩니다.
+
+<br>
+
+### 4️⃣ Commit 컨벤션 및 Redmine 연동
 커밋 메시지는 반드시 **키워드**와 **레드마인 이슈번호**를 포함해야 합니다.
 - **형식**: `feat: 기능 설명 refs #{redmine번호}`
 - **예시**: <br>
@@ -87,8 +190,10 @@ pnpm ci:check
 <br>
 
 
-### 3️⃣ (필수) Push 전 사전 테스트 진행
+### 5️⃣  Push 전 사전 테스트 진행
 코드 안정성을 위해 원격 저장소에 Push 하기 전, 로컬에서 모든 검증을 통과해야 합니다.
+현재 Push 시, Husky를 통해 자동적으로 진행됩니다. ( Husky 미진행 시, 수동으로 아래 명령어로 진행 필요)
+
 ```bash
 # 사전 테스트 진행
 $ pnpm ci:check
@@ -97,19 +202,6 @@ $ pnpm ci:check
 $ pnpm ci:check:fix
 ```
 **🚨 `pnpm ci:check`가 통과된 경우에만 "feature/**" 브랜치에 push 합니다.**
-
-### 4️⃣ (필수) dev 브랜치 Merge 규칙
-- **`dev` 브랜치로의 Merge 는 오직 Pull Request (PR)를 통해서만 가능합니다.**
-- **직접 Push 금지 ❌**
-- **사전 작업**: `pnpm ci:check`가 로컬에서 모두 통과된 상태여야 합니다.
-- **중요**: `dev` 브랜치는 반드시 PR을 통해서만 merge 될 수 있으며, 오직 `feature/**` 브랜치에서만 `dev`를 대상으로 PR을 생성할 수 있습니다.
-
-<br>
-
-### 5️⃣ (필수) main 브랜치 관리
-- **`main` 브랜치는 프로덕션 배포용 (live) 브랜치입니다.**
-- 반드시 `dev` -> `main` 방향으로 PR을 생성하여 merge를 진행합니다.
-- 직접 수정이나 직접 merge는 절대 금지됩니다.
 
 <br><br>
 
