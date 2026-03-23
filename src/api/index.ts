@@ -63,14 +63,20 @@ async function request<T>(
     })
     const json = (await res.json()) as ApiResponse<T>
 
-    // 401 Unauthorized: 자동 로그아웃 및 로그인 페이지로 리디렉션
+    // 401 Unauthorized: 응답 메시지 사용, 만료된 경우만 자동 로그아웃
     if (res.status === 401) {
-      localStorage.removeItem('accessToken')
-      // 간단한 location.replace로 처리 (라우터 통합 필요 시 별도 처리)
-      if (typeof window !== 'undefined') {
-        window.location.replace('/login')
+      const errorMessage = json.error?.[0] || '인증이 필요합니다.'
+
+      // 토큰 만료로 인한 401인 경우에만 자동 로그아웃
+      // (api 요청 중 토큰이 만료된 경우 = Silent Refresh 필요)
+      if (errorMessage.includes('만료') || errorMessage.includes('expired')) {
+        localStorage.removeItem('accessToken')
+        if (typeof window !== 'undefined') {
+          window.location.replace('/login')
+        }
       }
-      throw new ApiError('인증이 만료되었습니다. 다시 로그인해주세요.', 401)
+
+      throw new ApiError(errorMessage, 401)
     }
 
     if (res.ok && json.statusCode === 200) {

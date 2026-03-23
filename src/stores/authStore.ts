@@ -12,10 +12,12 @@ interface AuthState {
  * JWT payload에서 exp (expiration) claim 추출
  * @returns Unix timestamp (초) 또는 null
  */
-function getTokenExpiry(token: string): number | null {
+function getTokenExpiryValue(token: string): number | null {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.exp ?? null
+    const payloadStr = atob(token.split('.')[1])
+    const payload = JSON.parse(payloadStr) as Record<string, unknown>
+    const exp = payload.exp
+    return typeof exp === 'number' ? exp : null
   } catch {
     return null
   }
@@ -28,7 +30,7 @@ function isTokenExpiredFn(): boolean {
   const token = localStorage.getItem('accessToken')?.trim()
   if (!token) return true
 
-  const exp = getTokenExpiry(token)
+  const exp = getTokenExpiryValue(token)
   if (!exp) return true
 
   return Math.floor(Date.now() / 1000) > exp
@@ -44,6 +46,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   isTokenExpired: isTokenExpiredFn,
   getTokenExpiry: () => {
     const token = localStorage.getItem('accessToken')?.trim()
-    return token ? getTokenExpiry(token) : null
+    return token ? getTokenExpiryValue(token) : null
   },
 }))

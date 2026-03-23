@@ -8,9 +8,9 @@ export function MainPage() {
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     logout()
-    navigate({ to: '/login' })
+    await navigate({ to: '/login' })
   }
 
   const sampleUtcDate = '2024-01-15T09:00:00Z'
@@ -36,7 +36,9 @@ export function MainPage() {
 
         <button
           type="button"
-          onClick={handleLogout}
+          onClick={() => {
+            void handleLogout()
+          }}
           className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
         >
           로그아웃

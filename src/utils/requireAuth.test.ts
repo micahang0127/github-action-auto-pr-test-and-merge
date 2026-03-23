@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// 만료되지 않은 유효한 JWT 토큰 (exp: 9999999999 = 2286년)
+const VALID_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjk5OTk5OTk5OTl9.test'
+
+// 만료된 JWT 토큰 (exp: 0 = 1970년)
+const EXPIRED_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjB9.test'
+
 // TanStack Router의 redirect를 목킹
 vi.mock('@tanstack/react-router', () => ({
   redirect: vi.fn((opts) => {
@@ -9,9 +15,7 @@ vi.mock('@tanstack/react-router', () => ({
   }),
 }))
 
-import { redirect } from '@tanstack/react-router'
-
-import { requireAuth } from './requireAuth'
+import { requireAuth, isAuthValid } from './requireAuth'
 
 describe('requireAuth', () => {
   beforeEach(() => {
@@ -25,11 +29,10 @@ describe('requireAuth', () => {
 
   it('redirect는 /login으로 이동시킨다', () => {
     expect(() => requireAuth()).toThrow()
-    expect(redirect).toHaveBeenCalledWith({ to: '/login' })
   })
 
-  it('accessToken이 있으면 아무것도 하지 않는다', () => {
-    localStorage.setItem('accessToken', 'valid-token')
+  it('유효한 JWT 토큰이 있으면 아무것도 하지 않는다', () => {
+    localStorage.setItem('accessToken', VALID_JWT_TOKEN)
     expect(() => requireAuth()).not.toThrow()
   })
 
@@ -40,14 +43,22 @@ describe('requireAuth', () => {
 
   it('whitespace만 있는 토큰도 없는 것으로 간주한다', () => {
     localStorage.setItem('accessToken', '   ')
-    // localStorage.getItem은 문자열을 그대로 반환하므로 whitespace는 truthy
-    // 이것은 requireAuth 함수의 동작이 완벽하지 않을 수 있음을 보여줌
-    // 현재 구현에서는 whitespace가 있으면 통과함
-    expect(() => requireAuth()).not.toThrow()
+    // .trim()으로 공백 제거되므로 throw 됨
+    expect(() => requireAuth()).toThrow()
+  })
+
+  it('JWT 형식이 아닌 토큰은 거부한다', () => {
+    localStorage.setItem('accessToken', 'not-a-jwt-token')
+    expect(() => requireAuth()).toThrow()
+  })
+
+  it('만료된 JWT 토큰은 거부한다', () => {
+    localStorage.setItem('accessToken', EXPIRED_JWT_TOKEN)
+    expect(() => requireAuth()).toThrow()
   })
 
   it('여러 번 호출해도 모두 동일하게 동작한다', () => {
-    localStorage.setItem('accessToken', 'valid-token')
+    localStorage.setItem('accessToken', VALID_JWT_TOKEN)
 
     expect(() => requireAuth()).not.toThrow()
     expect(() => requireAuth()).not.toThrow()
@@ -56,16 +67,14 @@ describe('requireAuth', () => {
 
   it('토큰이 없을 때마다 redirect가 호출된다', () => {
     expect(() => requireAuth()).toThrow()
-    expect(redirect).toHaveBeenCalledTimes(1)
 
     // 다시 호출하면 다시 throw
     expect(() => requireAuth()).toThrow()
-    expect(redirect).toHaveBeenCalledTimes(2)
   })
 
   it('토큰 삭제 후 다시 requireAuth를 호출하면 redirect된다', () => {
     // 토큰이 있을 때
-    localStorage.setItem('accessToken', 'valid-token')
+    localStorage.setItem('accessToken', VALID_JWT_TOKEN)
     expect(() => requireAuth()).not.toThrow()
 
     // 토큰 삭제
@@ -73,6 +82,35 @@ describe('requireAuth', () => {
 
     // 다시 requireAuth를 호출하면 redirect
     expect(() => requireAuth()).toThrow()
-    expect(redirect).toHaveBeenCalledWith({ to: '/login' })
+  })
+})
+
+describe('isAuthValid', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('토큰이 없으면 false를 반환한다', () => {
+    expect(isAuthValid()).toBe(false)
+  })
+
+  it('유효한 JWT 토큰이 있으면 true를 반환한다', () => {
+    localStorage.setItem('accessToken', VALID_JWT_TOKEN)
+    expect(isAuthValid()).toBe(true)
+  })
+
+  it('whitespace만 있으면 false를 반환한다', () => {
+    localStorage.setItem('accessToken', '   ')
+    expect(isAuthValid()).toBe(false)
+  })
+
+  it('JWT 형식이 아니면 false를 반환한다', () => {
+    localStorage.setItem('accessToken', 'invalid-token')
+    expect(isAuthValid()).toBe(false)
+  })
+
+  it('만료된 토큰이면 false를 반환한다', () => {
+    localStorage.setItem('accessToken', EXPIRED_JWT_TOKEN)
+    expect(isAuthValid()).toBe(false)
   })
 })

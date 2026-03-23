@@ -14,10 +14,12 @@ function isValidTokenFormat(token: string): boolean {
  * 저장된 토큰의 만료 시간 추출 (JWT payload 디코딩)
  * @returns Unix timestamp (초) 또는 null (파싱 실패 시)
  */
-function getTokenExpiry(token: string): number | null {
+export function getTokenExpiry(token: string): number | null {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.exp ?? null
+    const payloadStr = atob(token.split('.')[1])
+    const payload = JSON.parse(payloadStr) as Record<string, unknown>
+    const exp = payload.exp
+    return typeof exp === 'number' ? exp : null
   } catch {
     return null
   }
@@ -34,23 +36,40 @@ function isTokenExpired(token: string): boolean {
   return Math.floor(Date.now() / 1000) > exp
 }
 
-export function requireAuth() {
+/**
+ * 토큰 유효성 검증 (형식, 만료 여부)
+ * @returns 토큰이 유효하면 true, 유효하지 않으면 false
+ */
+export function isAuthValid(): boolean {
   const token = localStorage.getItem('accessToken')?.trim()
 
   // 토큰 없음 또는 공백
   if (!token) {
-    throw redirect({ to: '/login' })
+    return false
   }
 
   // 토큰 형식 검증 실패
   if (!isValidTokenFormat(token)) {
     localStorage.removeItem('accessToken')
-    throw redirect({ to: '/login' })
+    return false
   }
 
   // 토큰 만료 확인
   if (isTokenExpired(token)) {
     localStorage.removeItem('accessToken')
+    return false
+  }
+
+  return true
+}
+
+/**
+ * 라우트 가드용 - TanStack Router beforeLoad에서 호출
+ * 토큰 유효성을 검증하고 유효하지 않으면 로그인 페이지로 리디렉션
+ */
+export function requireAuth(): void {
+  if (!isAuthValid()) {
+    // TanStack Router 패턴: RedirectError를 throw하여 리디렉션
     throw redirect({ to: '/login' })
   }
 }
