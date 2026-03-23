@@ -1,4 +1,4 @@
-# react + infra + PR etc 종합처리
+# KP Lab-Manager FRONT
 
 > React, Vite, SWC 기반의 프로젝트 
 
@@ -53,6 +53,8 @@ $ git commit -m "feat: 로그인 기능 추가 refs #123"
 | **pre-commit** | 자동 포맷팅 | Staged 파일들에 대해 `prettier`와 `eslint --fix` 자동 실행 |
 | **commit-msg** | 메시지 검증 | 커밋 메시지 형식 검사 (commitlint) |
 
+<br>
+
 **✅ 성공 케이스:**
 ```bash
 # 정확한 포맷
@@ -63,15 +65,13 @@ fix: 토큰 만료 버그 수정 refs #125
 
 **❌ 실패 케이스:**
 ```bash
-# 잘못된 타입 (대문자)
-Feat: 로그인 기능 추가
-
-# 허용되지 않는 타입
-awesome: 멋진 기능 추가
-
-# 설명 없음 (빈 메시지)
-feat:
+Feat: 로그인 기능 추가       # 잘못된 타입 (대문자)
+awesome: 멋진 기능 추가      # 허용되지 않는 타입
+feat:                      # 설명 없음 (빈 메시지)
+기능 추가 refs #123       # 키워드 없음
 ```
+
+<br>
 
 **허용되는 타입 (8가지):**
 
@@ -86,6 +86,7 @@ feat:
 | **test** | 테스트 코드 추가 | `test: 로그인 테스트 추가` |
 | **chore** | 설정, 패키지 관리 | `chore: 라이브러리 업데이트` |
 
+<br>
 <br>
 
 **2️⃣ Git Push 시 - 전체 CI 검사 자동 실행**
@@ -144,7 +145,22 @@ pnpm ci:check:fix
 
 <br>
 
-### 2️⃣ Commit 컨벤션 및 Redmine 연동
+### 2️⃣ (필수) dev 브랜치 Merge 규칙
+- **`dev` 브랜치로의 Merge 는 오직 Pull Request (PR)를 통해서만 가능합니다.**
+- **직접 Push 금지 ❌**
+- **사전 작업**: `pnpm ci:check`가 로컬에서 모두 통과된 상태여야 합니다.
+- **중요**: `dev` 브랜치는 반드시 PR을 통해서만 merge 될 수 있으며, 오직 `feature/**` 브랜치에서만 `dev`를 대상으로 PR을 생성할 수 있습니다.
+
+<br>
+
+### 3️⃣ (필수) main 브랜치 관리
+- **`main` 브랜치는 프로덕션 배포용 (live) 브랜치입니다.**
+- 반드시 `dev` -> `main` 방향으로 PR을 생성하여 merge를 진행합니다.
+- 직접 수정이나 직접 merge는 절대 금지됩니다.
+
+<br>
+
+### 4️⃣ Commit 컨벤션 및 Redmine 연동
 커밋 메시지는 반드시 **키워드**와 **레드마인 이슈번호**를 포함해야 합니다.
 - **형식**: `feat: 기능 설명 refs #{redmine번호}`
 - **예시**: <br>
@@ -169,8 +185,10 @@ pnpm ci:check:fix
 <br>
 
 
-### 3️⃣ (필수) Push 전 사전 테스트 진행
+### 5️⃣  Push 전 사전 테스트 진행
 코드 안정성을 위해 원격 저장소에 Push 하기 전, 로컬에서 모든 검증을 통과해야 합니다.
+현재 Push 시, Husky를 통해 자동적으로 진행됩니다. ( Husky 미진행 시, 수동으로 아래 명령어로 진행 필요)
+
 ```bash
 # 사전 테스트 진행
 $ pnpm ci:check
@@ -179,19 +197,6 @@ $ pnpm ci:check
 $ pnpm ci:check:fix
 ```
 **🚨 `pnpm ci:check`가 통과된 경우에만 "feature/**" 브랜치에 push 합니다.**
-
-### 4️⃣ (필수) dev 브랜치 Merge 규칙
-- **`dev` 브랜치로의 Merge 는 오직 Pull Request (PR)를 통해서만 가능합니다.**
-- **직접 Push 금지 ❌**
-- **사전 작업**: `pnpm ci:check`가 로컬에서 모두 통과된 상태여야 합니다.
-- **중요**: `dev` 브랜치는 반드시 PR을 통해서만 merge 될 수 있으며, 오직 `feature/**` 브랜치에서만 `dev`를 대상으로 PR을 생성할 수 있습니다.
-
-<br>
-
-### 5️⃣ (필수) main 브랜치 관리
-- **`main` 브랜치는 프로덕션 배포용 (live) 브랜치입니다.**
-- 반드시 `dev` -> `main` 방향으로 PR을 생성하여 merge를 진행합니다.
-- 직접 수정이나 직접 merge는 절대 금지됩니다.
 
 <br><br>
 
