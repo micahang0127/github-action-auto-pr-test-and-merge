@@ -24,7 +24,7 @@ describe('LoginPage - 로그인 폼', () => {
     localStorage.clear()
     useAuthStore.setState({ isLoggedIn: false })
     vi.mocked(useNavigate).mockReturnValue(mockNavigate)
-    viㄴ.clearAllMocks()
+    vi.clearAllMocks()
     server.resetHandlers()
   })
 
