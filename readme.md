@@ -1,4 +1,4 @@
-# KP Lab-Manager FRONT
+# react + infra + PR etc 종합처리
 
 > React, Vite, SWC 기반의 프로젝트 
 
