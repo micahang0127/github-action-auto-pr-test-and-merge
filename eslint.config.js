@@ -41,17 +41,21 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': 'off',
 
       // TypeScript - 기본 규칙만 유지
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unsafe-assignment': 'warn',
 
       // Import 정렬 (필수 유지)
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',
 
-      // 엄격한 규칙들은 off (중소 회사 중간 수준)
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/only-throw-error': 'off',
+      // 보안 관련 규칙 (강화)
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/only-throw-error': 'error',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+
+      // 기타 규칙
       '@typescript-eslint/consistent-type-imports': 'off',
     },
   },

@@ -4,6 +4,34 @@ interface AuthState {
   isLoggedIn: boolean
   setLoggedIn: (value: boolean) => void
   logout: () => void
+  isTokenExpired: () => boolean
+  getTokenExpiry: () => number | null
+}
+
+/**
+ * JWT payload에서 exp (expiration) claim 추출
+ * @returns Unix timestamp (초) 또는 null
+ */
+function getTokenExpiry(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 현재 저장된 토큰이 만료되었는지 확인
+ */
+function isTokenExpiredFn(): boolean {
+  const token = localStorage.getItem('accessToken')?.trim()
+  if (!token) return true
+
+  const exp = getTokenExpiry(token)
+  if (!exp) return true
+
+  return Math.floor(Date.now() / 1000) > exp
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -12,5 +40,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('accessToken')
     set({ isLoggedIn: false })
+  },
+  isTokenExpired: isTokenExpiredFn,
+  getTokenExpiry: () => {
+    const token = localStorage.getItem('accessToken')?.trim()
+    return token ? getTokenExpiry(token) : null
   },
 }))
