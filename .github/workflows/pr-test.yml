@@ -239,6 +239,7 @@ jobs:
               {"name": "브랜치",  "value": $branch, "inline": true},
               {"name": "PR",      "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
               {"name": "작성자",  "value": $actor,  "inline": true},
+              {"name": "Security Audit", "value": $audit, "inline": true},
               {"name": "Format",  "value": $format, "inline": true},
               {"name": "Lint",    "value": $lint,   "inline": true},
               {"name": "Test",    "value": $test,   "inline": true},
