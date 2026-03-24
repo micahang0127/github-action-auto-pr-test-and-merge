@@ -244,6 +244,7 @@ jobs:
               {"name": "Lint",    "value": $lint,   "inline": true},
               {"name": "Test",    "value": $test,   "inline": true},
               {"name": "Build",   "value": $build,  "inline": true},
+              {"name": "Security Audit", "value": $audit, "inline": true},
               {"name": "Allure 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
               {"name": "커버리지 상세", "value": $cov, "inline": false}
             ]')
@@ -373,6 +374,7 @@ jobs:
               {"name": "Lint",    "value": "✅ 성공", "inline": true},
               {"name": "Test",    "value": "✅ 성공", "inline": true},
               {"name": "Build",   "value": "✅ 성공", "inline": true},
+              {"name": "Security Audit", "value": "✅ 성공", "inline": true},
               {"name": "Allure 리포트", "value": ("[결과 보기](" + $report_url + ")"), "inline": true},
               {"name": "커버리지 상세", "value": $cov, "inline": false}
             ]')
