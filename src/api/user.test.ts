@@ -31,11 +31,11 @@ describe('login API', () => {
       http.post('*/auth/login', () =>
         HttpResponse.json(
           {
-            statusCode: 401,
+            statusCode: 400,
             data: {},
             error: ['이메일 또는 비밀번호가 틀렸습니다.'],
           },
-          { status: 401 }
+          { status: 400 }
         )
       )
     )
@@ -251,11 +251,11 @@ describe('changePassword API', () => {
       http.patch('*/auth/password', () =>
         HttpResponse.json(
           {
-            statusCode: 401,
+            statusCode: 400,
             data: false,
             error: ['현재 비밀번호가 일치하지 않습니다.'],
           },
-          { status: 401 }
+          { status: 400 }
         )
       )
     )

@@ -6,9 +6,9 @@ export function Header() {
   const navigate = useNavigate()
   const { isLoggedIn, logout } = useAuthStore()
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     logout()
-    navigate({ to: '/login' })
+    await navigate({ to: '/login' })
   }
 
   return (
@@ -29,7 +29,13 @@ export function Header() {
           </Link>
 
           {isLoggedIn ? (
-            <button type="button" onClick={handleLogout} className="hover:text-indigo-600">
+            <button
+              type="button"
+              onClick={() => {
+                void handleLogout()
+              }}
+              className="hover:text-indigo-600"
+            >
               Logout
             </button>
           ) : (

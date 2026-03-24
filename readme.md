@@ -92,6 +92,19 @@ feat:                         # ❌ 설명 없음 (필수)
 | **chore** | 설정, 패키지 관리 | `chore: 라이브러리 업데이트` |
 
 <br>
+
+#### 📋 수동 검증 방법 (선택사항)
+
+자동 검증 외에도, 필요시 수동으로 검증할 수 있습니다:
+
+```bash
+# 로컬 통합 검증 (Format, Type, Lint, Test, Build 체크)
+pnpm ci:check
+
+# 에러 발생 시 자동 수정 시도
+pnpm ci:check:fix
+```
+
 <br>
 
 **2️⃣ Git Push 시 - 전체 CI 검사 자동 실행**
@@ -111,33 +124,49 @@ pnpm ci:check
 #   && pnpm build           # 빌드 가능 확인
 ```
 
-**⚡ 효과:**
+**⚡ 목적:**
 - GitHub Actions CI와 동일한 검사를 Push 전에 로컬에서 미리 수행
 - CI 실패로 인한 PR 반려 방지
 - 팀의 코드 품질 표준 자동 준수
 
-<br>
-
-#### 📋 수동 검증 방법 (선택사항)
-
-자동 검증 외에도, 필요시 수동으로 검증할 수 있습니다:
-
-```bash
-# 로컬 통합 검증 (Format, Type, Lint, Test, Build 체크)
-pnpm ci:check
-
-# 에러 발생 시 자동 수정 시도
-pnpm ci:check:fix
-```
 
 <br>
+
 
 **💡 주의사항:**
 - **`pnpm install` 실행**: 팀원이 처음 설정할 때 자동으로 Husky 훅이 설치됩니다
 - **Commit 메시지 형식 준수**: 정확한 포맷이 아니면 커밋이 차단됩니다
 - **Push 전 자동 검사**: Pre-push 훅이 실패하면 Push가 차단되므로, 로컬에서 미리 수정하세요
 
+
+<br><br>
+
+**🔒 [필요] 보안 취약점 체크 (push 전, 별도 진행(권장))**
+
+⚠️ **중요:** 보안 취약점 스캔(`pnpm audit`)은 **로컬 Push 시에는 실행되지 않습니다.**
+Push는 성공해도 PR에서 패할 수 있습니다. (push 전, 아래 사전방지 보안 취약점 체크 진행 권장)
+
+- ❌ 로컬 husky: Security Audit 포함 안 함
+- ✅ PR 단계: Security Audit 포함 (자동 실행)
+
 <br>
+
+**사전 방지 (권장):**
+```bash
+# Push 전에 로컬에서 수동으로 실행하여 미리 감지
+pnpm audit --audit-level=high
+```
+
+**✅ 성공 시 결과:**
+```text
+No known vulnerabilities found
+```
+
+이렇게 하면 PR 단계에서 에러없이 진행 됩니다. (보안 에러로 PR이 닫히지 않습니다.)
+
+
+
+<br><br>
 
 ## 🌿 브랜치 및 협업 전략 (필독)
 
@@ -202,6 +231,59 @@ $ pnpm ci:check
 $ pnpm ci:check:fix
 ```
 **🚨 `pnpm ci:check`가 통과된 경우에만 "feature/**" 브랜치에 push 합니다.**
+
+<br><br>
+
+## 🔒 배포 전 보안 체크
+
+### 📋 Security Audit 검증
+
+이 프로젝트는 보안을 강화하기 위해 GitHub Actions에서 **자동으로 Security Audit을 실행**합니다.
+
+#### 🔄 검증 프로세스
+
+| 단계 | 실행 시점 | 내용 |
+|------|---------|------|
+| **로컬 개발** | 매일 | lint, format, test (빠른 피드백) |
+| **PR 단계** | 자동 | **Security Audit** + 모든 검사 |
+| **배포 전** | 수동 (권장) | 최종 보안 점검 |
+
+#### ✅ 배포 전 최종 보안 점검 (권장)
+
+배포하기 전에 다음 명령어로 보안 취약점을 최종 확인하세요:
+
+```bash
+# 보안 취약점 스캔 (High 심각도 이상)
+pnpm audit --audit-level=high
+```
+
+**예상 결과:**
+```
+No known vulnerabilities found  ✅
+```
+
+만약 취약점이 발견되면:
+
+```bash
+# 자동 수정 시도
+pnpm audit fix
+
+# 또는 특정 패키지만 업데이트
+pnpm update <package-name>
+```
+
+#### 📌 주의사항
+
+- **로컬에서는** lint, format, test만 자동 실행 (빠른 개발 경험)
+- **PR 단계에서는** Security Audit을 포함한 모든 검사 실행 (최종 검증)
+- **배포 전에는** `pnpm audit --audit-level=high`로 수동 확인 권장
+- Security Audit 실패 시 PR이 자동으로 닫힙니다
+
+#### 🛡️ 보안 정책
+
+자세한 보안 구현 현황과 향후 진행 항목은 아래를 참고하세요:
+- [보안 구현 현황](./docs/security/implemented.md) - Phase 1 완료 항목
+- [보안 추후 진행](./docs/security/future-work.md) - Phase 2-3 계획
 
 <br><br>
 

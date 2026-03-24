@@ -32,6 +32,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Security Audit
+        id: audit
+        run: |
+          set -o pipefail
+          pnpm audit --audit-level=high 2>&1 | tee /tmp/audit_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
       - name: Check Formatting
         id: format
         run: |
@@ -132,6 +140,7 @@ jobs:
 
       - name: Comment on PR (Failure)
         if: |
+          steps.audit.outcome == 'failure' ||
           steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
           steps.unit_test.outcome == 'failure' ||
@@ -141,6 +150,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const results = {
+              'Security Audit': '${{ steps.audit.outcome }}',
               'Formatting': '${{ steps.format.outcome }}',
               'Linting': '${{ steps.lint.outcome }}',
               'Unit Test': '${{ steps.unit_test.outcome }}',
@@ -181,6 +191,7 @@ jobs:
 
       - name: Close PR (Failure)
         if: |
+          steps.audit.outcome == 'failure' ||
           steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
           steps.unit_test.outcome == 'failure' ||
@@ -198,11 +209,13 @@ jobs:
 
       - name: Discord 알림 (실패)
         if: |
+          steps.audit.outcome == 'failure' ||
           steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
           steps.unit_test.outcome == 'failure' ||
           steps.build.outcome == 'failure'
         run: |
+          AUDIT_STATUS="${{ steps.audit.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
           FORMAT_STATUS="${{ steps.format.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
           LINT_STATUS="${{ steps.lint.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
           TEST_STATUS="${{ steps.unit_test.outcome == 'failure' && '❌ 실패' || '✅ 성공' }}"
@@ -215,6 +228,7 @@ jobs:
             --arg pr_title "[#${{ env.PR_NUMBER }}] ${{ env.PR_TITLE }}" \
             --arg pr_url "${{ env.PR_URL }}" \
             --arg actor "${{ github.actor }}" \
+            --arg audit  "$AUDIT_STATUS" \
             --arg format "$FORMAT_STATUS" \
             --arg lint  "$LINT_STATUS" \
             --arg test  "$TEST_STATUS" \
@@ -225,6 +239,7 @@ jobs:
               {"name": "브랜치",  "value": $branch, "inline": true},
               {"name": "PR",      "value": ("[" + $pr_title + "](" + $pr_url + ")"), "inline": true},
               {"name": "작성자",  "value": $actor,  "inline": true},
+              {"name": "Security Audit", "value": $audit, "inline": true},
               {"name": "Format",  "value": $format, "inline": true},
               {"name": "Lint",    "value": $lint,   "inline": true},
               {"name": "Test",    "value": $test,   "inline": true},
@@ -234,6 +249,11 @@ jobs:
             ]')
 
           # 각 단계별 에러 로그 추가 함수 로직
+          if [ "${{ steps.audit.outcome }}" = "failure" ] && [ -s "/tmp/audit_output.txt" ]; then
+            MSG=$(tail -c 500 "/tmp/audit_output.txt")
+            FIELDS=$(echo "$FIELDS" | jq --arg msg "$MSG" '. + [{"name": "Security Audit 에러 요약", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
+          fi
+
           if [ "${{ steps.format.outcome }}" = "failure" ] && [ -s "/tmp/format_output.txt" ]; then
             MSG=$(tail -c 500 "/tmp/format_output.txt")
             FIELDS=$(echo "$FIELDS" | jq --arg msg "$MSG" '. + [{"name": "Format 에러 요약", "value": ("```\n" + $msg + "\n```"), "inline": false}]')
@@ -272,6 +292,7 @@ jobs:
 
       - name: Comment on PR (Success)
         if: |
+          steps.audit.outcome == 'success' &&
           steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
           steps.unit_test.outcome == 'success' &&
@@ -300,6 +321,7 @@ jobs:
 
       - name: Verify PR base is dev
         if: |
+          steps.audit.outcome == 'success' &&
           steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
           steps.unit_test.outcome == 'success' &&
@@ -316,6 +338,7 @@ jobs:
 
       - name: Auto merge PR to dev (Success)
         if: |
+          steps.audit.outcome == 'success' &&
           steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
           steps.unit_test.outcome == 'success' &&
@@ -326,6 +349,7 @@ jobs:
 
       - name: Discord 알림 (성공)
         if: |
+          steps.audit.outcome == 'success' &&
           steps.format.outcome == 'success' &&
           steps.lint.outcome == 'success' &&
           steps.unit_test.outcome == 'success' &&
@@ -372,6 +396,7 @@ jobs:
 
       - name: Fail workflow if checks failed
         if: |
+          steps.audit.outcome == 'failure' ||
           steps.format.outcome == 'failure' ||
           steps.lint.outcome == 'failure' ||
           steps.unit_test.outcome == 'failure' ||
