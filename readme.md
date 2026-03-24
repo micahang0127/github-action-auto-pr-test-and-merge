@@ -92,6 +92,19 @@ feat:                         # ❌ 설명 없음 (필수)
 | **chore** | 설정, 패키지 관리 | `chore: 라이브러리 업데이트` |
 
 <br>
+
+#### 📋 수동 검증 방법 (선택사항)
+
+자동 검증 외에도, 필요시 수동으로 검증할 수 있습니다:
+
+```bash
+# 로컬 통합 검증 (Format, Type, Lint, Test, Build 체크)
+pnpm ci:check
+
+# 에러 발생 시 자동 수정 시도
+pnpm ci:check:fix
+```
+
 <br>
 
 **2️⃣ Git Push 시 - 전체 CI 검사 자동 실행**
@@ -111,20 +124,32 @@ pnpm ci:check
 #   && pnpm build           # 빌드 가능 확인
 ```
 
-**⚡ 효과:**
+**⚡ 목적:**
 - GitHub Actions CI와 동일한 검사를 Push 전에 로컬에서 미리 수행
 - CI 실패로 인한 PR 반려 방지
 - 팀의 코드 품질 표준 자동 준수
 
+
 <br>
 
-**🔒 보안 취약점 체크 (별도 진행)**
+
+**💡 주의사항:**
+- **`pnpm install` 실행**: 팀원이 처음 설정할 때 자동으로 Husky 훅이 설치됩니다
+- **Commit 메시지 형식 준수**: 정확한 포맷이 아니면 커밋이 차단됩니다
+- **Push 전 자동 검사**: Pre-push 훅이 실패하면 Push가 차단되므로, 로컬에서 미리 수정하세요
+
+
+<br><br>
+
+**🔒 [필요] 보안 취약점 체크 (push 전, 별도 진행(권장))**
 
 ⚠️ **중요:** 보안 취약점 스캔(`pnpm audit`)은 **로컬 Push 시에는 실행되지 않습니다.**
+Push는 성공해도 PR에서 패할 수 있습니다. (push 전, 아래 사전방지 보안 취약점 체크 진행 권장)
+
 - ❌ 로컬 husky: Security Audit 포함 안 함
 - ✅ PR 단계: Security Audit 포함 (자동 실행)
 
-**결과:** Push는 성공해도 PR에서 보안 취약점으로 실패할 수 있습니다.
+<br>
 
 **사전 방지 (권장):**
 ```bash
@@ -132,30 +157,16 @@ pnpm ci:check
 pnpm audit --audit-level=high
 ```
 
-이렇게 하면 PR 단계에서 같은 보안 에러로 PR이 닫히지 않습니다.
-
-<br>
-
-#### 📋 수동 검증 방법 (선택사항)
-
-자동 검증 외에도, 필요시 수동으로 검증할 수 있습니다:
-
-```bash
-# 로컬 통합 검증 (Format, Type, Lint, Test, Build 체크)
-pnpm ci:check
-
-# 에러 발생 시 자동 수정 시도
-pnpm ci:check:fix
+**✅ 성공 시 결과:**
+```text
+No known vulnerabilities found
 ```
 
-<br>
+이렇게 하면 PR 단계에서 에러없이 진행 됩니다. (보안 에러로 PR이 닫히지 않습니다.)
 
-**💡 주의사항:**
-- **`pnpm install` 실행**: 팀원이 처음 설정할 때 자동으로 Husky 훅이 설치됩니다
-- **Commit 메시지 형식 준수**: 정확한 포맷이 아니면 커밋이 차단됩니다
-- **Push 전 자동 검사**: Pre-push 훅이 실패하면 Push가 차단되므로, 로컬에서 미리 수정하세요
 
-<br>
+
+<br><br>
 
 ## 🌿 브랜치 및 협업 전략 (필독)
 
