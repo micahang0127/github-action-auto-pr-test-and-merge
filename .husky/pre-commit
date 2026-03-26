@@ -1,2 +1,39 @@
-echo "pre-commit: lint-staged 실행 가능하도록 설정됨"
-exit 0
+#!/bin/sh
+
+echo "🔍 Checking code style, types, and tests..."
+
+# 1. 포맷 체크
+echo ""
+echo "📋 Checking code formatting..."
+pnpm format:check
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Code style issues found!"
+  echo "💡 Fix: Run 'pnpm format' to auto-fix formatting"
+  exit 1
+fi
+
+# 2. 타입 체크
+echo ""
+echo "📋 Checking TypeScript types..."
+pnpm type-check
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ TypeScript errors found!"
+  echo "💡 Fix: Check the errors above and fix them manually"
+  exit 1
+fi
+
+# 3. 린트 체크
+echo ""
+echo "📋 Running ESLint..."
+pnpm lint
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Linting errors found!"
+  echo "💡 Fix: Run 'pnpm lint:fix' to auto-fix linting issues"
+  exit 1
+fi
+
+echo ""
+echo "✅ All pre-commit checks passed!"
