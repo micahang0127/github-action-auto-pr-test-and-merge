@@ -16,6 +16,11 @@ export interface ApiResponse<T> {
   error: string[]
 }
 
+export interface RequestOptions {
+  extraHeaders?: Record<string, string>  // 커스텀 헤더 (예: KPMFP)
+  skipAuth?: boolean                     // true면 Authorization 헤더 미포함
+}
+
 // ─── Error Types ──────────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
@@ -43,12 +48,14 @@ const getToken = () => localStorage.getItem('accessToken')?.trim()
 async function request<T>(
   method: string,
   endpoint: string,
-  body?: unknown
+  body?: unknown,
+  options?: RequestOptions
 ): Promise<ApiResponse<T>> {
   const token = getToken()
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(token && !options?.skipAuth && { Authorization: `Bearer ${token}` }),
+    ...options?.extraHeaders,
   }
 
   const controller = new AbortController()
@@ -100,7 +107,8 @@ async function request<T>(
 
 export const api = {
   get: <T = PagedData>(endpoint: string) => request<T>('GET', endpoint),
-  post: <T = boolean>(endpoint: string, body?: unknown) => request<T>('POST', endpoint, body),
+  post: <T = boolean>(endpoint: string, body?: unknown, options?: RequestOptions) =>
+    request<T>('POST', endpoint, body, options),
   patch: (endpoint: string, body?: unknown) => request<boolean>('PATCH', endpoint, body),
   delete: (endpoint: string) => request<boolean>('DELETE', endpoint),
 }

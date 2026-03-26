@@ -19,7 +19,11 @@ vi.mock('@portone/browser-sdk/v2', () => ({
   requestIdentityVerification: vi.fn(),
 }))
 
-describe('LoginPage - 로그인 폼', () => {
+vi.mock('../utils/fingerprint', () => ({
+  getFingerprint: vi.fn().mockResolvedValue('mock-fingerprint-abc123'),
+}))
+
+describe('LoginPage - 로그인 폼 (동일 기기, type T)', () => {
   beforeEach(() => {
     localStorage.clear()
     useAuthStore.setState({ isLoggedIn: false })
@@ -34,10 +38,10 @@ describe('LoginPage - 로그인 폼', () => {
 
   it('이메일과 비밀번호를 입력하고 로그인할 수 있다', async () => {
     server.use(
-      http.post('*/auth/login', () =>
+      http.post('*/user/login', () =>
         HttpResponse.json({
           statusCode: 200,
-          data: { accessToken: 'new-token-123' },
+          data: { type: 'T', token: 'new-token-123' },
           error: [],
         })
       )
@@ -53,19 +57,16 @@ describe('LoginPage - 로그인 폼', () => {
     await userEvent.type(passwordInput, 'password123')
     await userEvent.click(submitButton)
 
-    // 토큰 저장 확인 (비동기 지연을 고려하여 waitFor 사용)
     await waitFor(() => {
       expect(localStorage.getItem('accessToken')).toBe('new-token-123')
-      // store 업데이트 확인
       expect(useAuthStore.getState().isLoggedIn).toBe(true)
-      // 네비게이션 확인
       expect(mockNavigate).toHaveBeenCalledWith({ to: '/main' })
     })
   })
 
   it('로그인 실패 시 에러 메시지를 표시한다', async () => {
     server.use(
-      http.post('*/auth/login', () =>
+      http.post('*/user/login', () =>
         HttpResponse.json(
           {
             statusCode: 401,
@@ -87,13 +88,10 @@ describe('LoginPage - 로그인 폼', () => {
     await userEvent.type(passwordInput, 'wrong')
     await userEvent.click(submitButton)
 
-    // 에러 메시지 표시 확인
     expect(await screen.findByText(/이메일 또는 비밀번호가 틀렸습니다./)).toBeInTheDocument()
 
-    // 토큰이 저장되지 않아야 함
     await waitFor(() => {
       expect(localStorage.getItem('accessToken')).toBeNull()
-      // 네비게이션이 호출되지 않아야 함
       expect(mockNavigate).not.toHaveBeenCalled()
     })
   })
@@ -105,11 +103,11 @@ describe('LoginPage - 로그인 폼', () => {
     })
 
     server.use(
-      http.post('*/auth/login', async () => {
+      http.post('*/user/login', async () => {
         await loginPromise
         return HttpResponse.json({
           statusCode: 200,
-          data: { accessToken: 'token' },
+          data: { type: 'T', token: 'token' },
           error: [],
         })
       })
@@ -125,7 +123,6 @@ describe('LoginPage - 로그인 폼', () => {
     await userEvent.type(passwordInput, 'password123')
     await userEvent.click(submitButton)
 
-    // 로그인 중 버튼이 disabled
     expect(submitButton).toBeDisabled()
     expect(submitButton).toHaveTextContent(/로그인 중/)
 
@@ -143,6 +140,244 @@ describe('LoginPage - 로그인 폼', () => {
 
     expect(emailInput.value).toBe('test@example.com')
     expect(passwordInput.value).toBe('test123')
+  })
+})
+
+describe('LoginPage - 로그인 폼 (신규 기기, OTP 플로우)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useAuthStore.setState({ isLoggedIn: false })
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate)
+    vi.clearAllMocks()
+    server.resetHandlers()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('type O 응답 시 OTP 입력 UI가 표시된다', async () => {
+    server.use(
+      http.post('*/user/login', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { type: 'O' },
+          error: [],
+        })
+      )
+    )
+
+    render(<LoginPage />)
+
+    const emailInput = screen.getByLabelText(/이메일/)
+    const passwordInput = screen.getByLabelText(/비밀번호/)
+    const submitButton = screen.getByRole('button', { name: /^로그인$/ })
+
+    await userEvent.type(emailInput, 'user@test.com')
+    await userEvent.type(passwordInput, 'password123')
+    await userEvent.click(submitButton)
+
+    // OTP 입력 UI가 표시되어야 함
+    expect(await screen.findByLabelText(/인증번호/)).toBeInTheDocument()
+    expect(screen.getByText(/남은 시간/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /OTP 인증/ })).toBeInTheDocument()
+  })
+
+  it('OTP 6자리 입력 후 제출 시 /main으로 이동한다', async () => {
+    server.use(
+      http.post('*/user/login', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { type: 'O' },
+          error: [],
+        }),
+      ),
+      http.post('*/user/otplogin', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { token: 'otp-token-456' },
+          error: [],
+        })
+      )
+    )
+
+    render(<LoginPage />)
+
+    // 자격증명 입력 및 제출
+    await userEvent.type(screen.getByLabelText(/이메일/), 'user@test.com')
+    await userEvent.type(screen.getByLabelText(/비밀번호/), 'password123')
+    await userEvent.click(screen.getByRole('button', { name: /^로그인$/ }))
+
+    // OTP 입력
+    const otpInput = await screen.findByLabelText(/인증번호/)
+    await userEvent.type(otpInput, '123456')
+
+    // OTP 제출
+    const otpButton = screen.getByRole('button', { name: /OTP 인증/ })
+    await userEvent.click(otpButton)
+
+    await waitFor(() => {
+      expect(localStorage.getItem('accessToken')).toBe('otp-token-456')
+      expect(useAuthStore.getState().isLoggedIn).toBe(true)
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/main' })
+    })
+  })
+
+  it('OTP 입력 중에는 숫자만 입력된다', async () => {
+    server.use(
+      http.post('*/user/login', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { type: 'O' },
+          error: [],
+        })
+      )
+    )
+
+    render(<LoginPage />)
+
+    await userEvent.type(screen.getByLabelText(/이메일/), 'user@test.com')
+    await userEvent.type(screen.getByLabelText(/비밀번호/), 'password123')
+    await userEvent.click(screen.getByRole('button', { name: /^로그인$/ }))
+
+    const otpInput = (await screen.findByLabelText(/인증번호/)) as HTMLInputElement
+    await userEvent.type(otpInput, 'abc123def')
+
+    // 숫자만 입력되어야 함
+    expect(otpInput.value).toBe('123')
+  })
+
+  it('OTP 6자리 미만이면 제출 버튼이 disabled다', async () => {
+    server.use(
+      http.post('*/user/login', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { type: 'O' },
+          error: [],
+        })
+      )
+    )
+
+    render(<LoginPage />)
+
+    await userEvent.type(screen.getByLabelText(/이메일/), 'user@test.com')
+    await userEvent.type(screen.getByLabelText(/비밀번호/), 'password123')
+    await userEvent.click(screen.getByRole('button', { name: /^로그인$/ }))
+
+    const otpInput = await screen.findByLabelText(/인증번호/)
+    const otpButton = screen.getByRole('button', { name: /OTP 인증/ })
+
+    // 5자리 입력
+    await userEvent.type(otpInput, '12345')
+    expect(otpButton).toBeDisabled()
+
+    // 6자리 입력
+    await userEvent.type(otpInput, '6')
+    expect(otpButton).not.toBeDisabled()
+  })
+
+  it('OTP 오류 시 에러 메시지를 표시한다', async () => {
+    server.use(
+      http.post('*/user/login', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { type: 'O' },
+          error: [],
+        }),
+      ),
+      http.post('*/user/otplogin', () =>
+        HttpResponse.json(
+          {
+            statusCode: 400,
+            data: {},
+            error: ['잘못된 OTP 코드입니다.'],
+          },
+          { status: 400 }
+        )
+      )
+    )
+
+    render(<LoginPage />)
+
+    await userEvent.type(screen.getByLabelText(/이메일/), 'user@test.com')
+    await userEvent.type(screen.getByLabelText(/비밀번호/), 'password123')
+    await userEvent.click(screen.getByRole('button', { name: /^로그인$/ }))
+
+    const otpInput = await screen.findByLabelText(/인증번호/)
+    await userEvent.type(otpInput, '000000')
+    await userEvent.click(screen.getByRole('button', { name: /OTP 인증/ }))
+
+    expect(await screen.findByText(/잘못된 OTP 코드입니다./)).toBeInTheDocument()
+  })
+
+  it('"처음부터 시작" 버튼을 클릭하면 자격증명 폼으로 돌아간다', async () => {
+    server.use(
+      http.post('*/user/login', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { type: 'O' },
+          error: [],
+        })
+      )
+    )
+
+    render(<LoginPage />)
+
+    await userEvent.type(screen.getByLabelText(/이메일/), 'user@test.com')
+    await userEvent.type(screen.getByLabelText(/비밀번호/), 'password123')
+    await userEvent.click(screen.getByRole('button', { name: /^로그인$/ }))
+
+    // OTP 단계 확인
+    expect(await screen.findByLabelText(/인증번호/)).toBeInTheDocument()
+
+    // "처음부터 시작" 버튼 클릭
+    await userEvent.click(screen.getByRole('button', { name: /처음부터 시작/ }))
+
+    // 자격증명 폼으로 돌아갔는지 확인
+    expect(screen.getByLabelText(/^이메일/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^비밀번호/)).toBeInTheDocument()
+  })
+
+  it('OTP 중에는 제출 버튼이 disabled다', async () => {
+    let resolveOtp: () => void = () => {}
+    const otpPromise = new Promise<void>((resolve) => {
+      resolveOtp = resolve
+    })
+
+    server.use(
+      http.post('*/user/login', () =>
+        HttpResponse.json({
+          statusCode: 200,
+          data: { type: 'O' },
+          error: [],
+        }),
+      ),
+      http.post('*/user/otplogin', async () => {
+        await otpPromise
+        return HttpResponse.json({
+          statusCode: 200,
+          data: { token: 'tok' },
+          error: [],
+        })
+      })
+    )
+
+    render(<LoginPage />)
+
+    await userEvent.type(screen.getByLabelText(/이메일/), 'user@test.com')
+    await userEvent.type(screen.getByLabelText(/비밀번호/), 'password123')
+    await userEvent.click(screen.getByRole('button', { name: /^로그인$/ }))
+
+    const otpInput = await screen.findByLabelText(/인증번호/)
+    await userEvent.type(otpInput, '123456')
+
+    const otpButton = screen.getByRole('button', { name: /OTP 인증/ })
+    await userEvent.click(otpButton)
+
+    expect(otpButton).toBeDisabled()
+    expect(otpButton).toHaveTextContent(/OTP 확인 중/)
+
+    resolveOtp()
   })
 })
 
@@ -181,7 +416,6 @@ describe('LoginPage - 본인인증', () => {
     await userEvent.click(screen.getByRole('button', { name: /본인인증/ }))
 
     expect(await screen.findByText(/본인인증이 완료되었습니다./)).toBeInTheDocument()
-    // 에러 알럿이 없어야 함
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -208,7 +442,6 @@ describe('LoginPage - 본인인증', () => {
 
     await userEvent.click(ivButton)
 
-    // SDK가 호출되었는지 확인
     expect(requestIdentityVerification).toHaveBeenCalled()
   })
 
@@ -270,7 +503,6 @@ describe('LoginPage - 본인인증', () => {
 
     await userEvent.click(ivButton)
 
-    // 본인인증 중 버튼이 disabled
     expect(ivButton).toBeDisabled()
     expect(ivButton).toHaveTextContent(/본인인증 중/)
 
@@ -280,7 +512,6 @@ describe('LoginPage - 본인인증', () => {
   it('본인인증은 여러 번 시도할 수 있다', async () => {
     const { requestIdentityVerification } = await import('@portone/browser-sdk/v2')
 
-    // 첫 번째 시도: 성공
     vi.mocked(requestIdentityVerification).mockResolvedValueOnce({
       identityVerificationId: 'iv-success-1',
       transactionType: 'IDENTITY_VERIFICATION',
@@ -300,20 +531,16 @@ describe('LoginPage - 본인인증', () => {
     render(<LoginPage />)
     const ivButton = screen.getByRole('button', { name: /본인인증/ })
 
-    // 첫 번째 본인인증
     await userEvent.click(ivButton)
     expect(await screen.findByText(/본인인증이 완료되었습니다./)).toBeInTheDocument()
 
-    // 두 번째 시도: 유저가 취소
     vi.mocked(requestIdentityVerification).mockResolvedValueOnce({
       code: 'USER_CANCELLED',
       message: '사용자가 취소했습니다.',
     } as any)
 
-    // 두 번째 본인인증 시도
     await userEvent.click(ivButton)
 
-    // 새로운 에러 메시지가 표시됨
     expect(await screen.findByText(/사용자가 취소했습니다./)).toBeInTheDocument()
   })
 })
