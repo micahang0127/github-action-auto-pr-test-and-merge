@@ -21,7 +21,10 @@ describe('login API', () => {
       )
     )
 
-    const result = await login({ email: 'test@test.com', password: '1234', deviceType: 'WEB' }, null)
+    const result = await login(
+      { email: 'test@test.com', password: '1234', deviceType: 'WEB' },
+      null
+    )
     expect(result.statusCode).toBe(200)
     expect(result.data?.type).toBe('T')
     expect(result.data?.token).toBe('real-token-xyz')
@@ -38,7 +41,10 @@ describe('login API', () => {
       )
     )
 
-    const result = await login({ email: 'test@test.com', password: '1234', deviceType: 'WEB' }, null)
+    const result = await login(
+      { email: 'test@test.com', password: '1234', deviceType: 'WEB' },
+      null
+    )
     expect(result.statusCode).toBe(200)
     expect(result.data?.type).toBe('O')
     expect(result.data?.token).toBeUndefined()

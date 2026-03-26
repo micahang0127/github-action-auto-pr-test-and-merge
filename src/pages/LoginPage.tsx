@@ -10,9 +10,7 @@ import { useAuthStore } from '../stores/authStore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type LoginStep =
-  | { kind: 'credentials' }
-  | { kind: 'otp'; email: string; expiresAt: number }
+type LoginStep = { kind: 'credentials' } | { kind: 'otp'; email: string; expiresAt: number }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -59,10 +57,7 @@ export function LoginPage() {
     mutationFn: async (vars: { email: string; password: string }) => {
       const fp = await getFingerprint()
       fingerprintRef.current = fp
-      return login(
-        { email: vars.email, password: vars.password, deviceType: DEVICE_TYPE_WEB },
-        fp
-      )
+      return login({ email: vars.email, password: vars.password, deviceType: DEVICE_TYPE_WEB }, fp)
     },
     onSuccess: (res) => {
       if (res.data.type === 'T' && res.data.token) {
@@ -259,7 +254,9 @@ export function LoginPage() {
 
           {/* OTP 입력 폼 */}
           <form className="space-y-4" onSubmit={handleOtpSubmit}>
-            <p className="text-sm text-gray-600">{step.email}로 발송된 6자리 인증번호를 입력해주세요.</p>
+            <p className="text-sm text-gray-600">
+              {step.email}로 발송된 6자리 인증번호를 입력해주세요.
+            </p>
 
             <div>
               <label htmlFor="otp-code" className="mb-1 block text-sm font-medium text-gray-700">

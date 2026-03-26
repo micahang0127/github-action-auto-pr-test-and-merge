@@ -190,7 +190,7 @@ describe('LoginPage - 로그인 폼 (신규 기기, OTP 플로우)', () => {
           statusCode: 200,
           data: { type: 'O' },
           error: [],
-        }),
+        })
       ),
       http.post('*/user/otplogin', () =>
         HttpResponse.json({
@@ -283,7 +283,7 @@ describe('LoginPage - 로그인 폼 (신규 기기, OTP 플로우)', () => {
           statusCode: 200,
           data: { type: 'O' },
           error: [],
-        }),
+        })
       ),
       http.post('*/user/otplogin', () =>
         HttpResponse.json(
@@ -350,7 +350,7 @@ describe('LoginPage - 로그인 폼 (신규 기기, OTP 플로우)', () => {
           statusCode: 200,
           data: { type: 'O' },
           error: [],
-        }),
+        })
       ),
       http.post('*/user/otplogin', async () => {
         await otpPromise
