@@ -392,7 +392,7 @@ describe('otpLogin API', () => {
   })
 
   it('KPMFP 헤더가 요청에 포함될 수 있다', async () => {
-    let capturedHeader: string | null = undefined
+    let capturedHeader: string | null = null
     server.use(
       http.post('*/user/otplogin', ({ request }) => {
         capturedHeader = request.headers.get('KPMFP')
@@ -413,7 +413,7 @@ describe('otpLogin API', () => {
 
   it('OTP 로그인 요청에 Authorization 헤더가 포함되지 않는다', async () => {
     localStorage.setItem('accessToken', 'existing-token')
-    let authHeader: string | null = undefined
+    let authHeader: string | null = null
     server.use(
       http.post('*/user/otplogin', ({ request }) => {
         authHeader = request.headers.get('Authorization')
