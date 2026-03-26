@@ -17,8 +17,8 @@ export interface ApiResponse<T> {
 }
 
 export interface RequestOptions {
-  extraHeaders?: Record<string, string>  // 커스텀 헤더 (예: KPMFP)
-  skipAuth?: boolean                     // true면 Authorization 헤더 미포함
+  extraHeaders?: Record<string, string> // 커스텀 헤더 (예: KPMFP)
+  skipAuth?: boolean // true면 Authorization 헤더 미포함
 }
 
 // ─── Error Types ──────────────────────────────────────────────────────────────
