@@ -1,4 +1,4 @@
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '') as string
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 const REQUEST_TIMEOUT = 10_000 // 10초
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ if (import.meta.env.PROD && BASE_URL && BASE_URL.startsWith('http://')) {
 
 // ─── Token ───────────────────────────────────────────────────────────────────
 
-const getToken = () => localStorage.getItem('accessToken')?.trim()
+const getToken = () => sessionStorage.getItem('accessToken')?.trim()
 
 // ─── Base request ─────────────────────────────────────────────────────────────
 
@@ -77,7 +77,7 @@ async function request<T>(
       // 토큰 만료로 인한 401인 경우에만 자동 로그아웃
       // (api 요청 중 토큰이 만료된 경우 = Silent Refresh 필요)
       if (errorMessage.includes('만료') || errorMessage.includes('expired')) {
-        localStorage.removeItem('accessToken')
+        sessionStorage.removeItem('accessToken')
         if (typeof window !== 'undefined') {
           window.location.replace('/login')
         }

@@ -27,7 +27,7 @@ function getTokenExpiryValue(token: string): number | null {
  * 현재 저장된 토큰이 만료되었는지 확인
  */
 function isTokenExpiredFn(): boolean {
-  const token = localStorage.getItem('accessToken')?.trim()
+  const token = sessionStorage.getItem('accessToken')?.trim()
   if (!token) return true
 
   const exp = getTokenExpiryValue(token)
@@ -37,15 +37,15 @@ function isTokenExpiredFn(): boolean {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isLoggedIn: !!localStorage.getItem('accessToken'),
+  isLoggedIn: !!sessionStorage.getItem('accessToken'),
   setLoggedIn: (value) => set({ isLoggedIn: value }),
   logout: () => {
-    localStorage.removeItem('accessToken')
+    sessionStorage.removeItem('accessToken')
     set({ isLoggedIn: false })
   },
   isTokenExpired: isTokenExpiredFn,
   getTokenExpiry: () => {
-    const token = localStorage.getItem('accessToken')?.trim()
+    const token = sessionStorage.getItem('accessToken')?.trim()
     return token ? getTokenExpiryValue(token) : null
   },
 }))

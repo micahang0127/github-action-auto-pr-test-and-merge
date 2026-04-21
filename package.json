@@ -1,12 +1,14 @@
 {
-  "name": "prj-tobe",
+  "name": "kp-lab-manager-pro",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "packageManager": "pnpm@10.30.3",
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && pnpm copy:ketcher-assets && vite build",
+    "copy:ketcher-assets": "node scripts/copy-ketcher-assets.js",
     "build:dev": "vite build --mode development",
     "build:prod": "vite build --mode production",
     "lint": "eslint .",
@@ -17,8 +19,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "ci:check": "pnpm format:check && pnpm type-check && pnpm lint && pnpm test && pnpm build",
-    "ci:check:fix": "pnpm format && pnpm lint:fix && pnpm type-check && pnpm test && pnpm build",
+    "ci:check": "pnpm format:check && pnpm type-check && pnpm lint && vitest run && pnpm build",
+    "ci:check:fix": "pnpm format && pnpm lint:fix && pnpm type-check && vitest run && pnpm build",
     "preview": "vite preview",
     "prepare": "husky"
   },
@@ -38,6 +40,8 @@
     "@tanstack/react-router": "^1.166.3",
     "@tanstack/router-devtools": "^1.166.3",
     "dayjs": "^1.11.19",
+    "ketcher-react": "^3.12.0",
+    "ketcher-standalone": "^3.12.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.11"
@@ -45,7 +49,9 @@
   "pnpm": {
     "overrides": {
       "flatted": ">=3.4.2",
-      "picomatch": ">=4.0.4"
+      "picomatch": ">=4.0.4",
+      "minimatch": ">=3.1.4",
+      "immutable": ">=3.8.3"
     }
   },
   "devDependencies": {

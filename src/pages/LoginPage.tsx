@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 
 import { confirmIdentityVerification } from '../api/auth'
 import { DEVICE_TYPE_WEB, login, otpLogin } from '../api/user'
-import { getFingerprint } from '../utils/fingerprint'
 import { useAuthStore } from '../stores/authStore'
+import { getFingerprint } from '../utils/fingerprint'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ export function LoginPage() {
     onSuccess: (res) => {
       if (res.data.type === 'T' && res.data.token) {
         // 같은 기기 — 즉시 로그인
-        localStorage.setItem('accessToken', res.data.token)
+        sessionStorage.setItem('accessToken', res.data.token)
         setLoggedIn(true)
         void navigate({ to: '/main' })
       } else if (res.data.type === 'O') {
@@ -74,6 +74,16 @@ export function LoginPage() {
         })
       }
     },
+    // [TEMP] 추후 로그인 backend api 연동 필요 26.04.14
+    // backend 연동 완료 시 아래 onError 블록 전체 제거
+    onError: () => {
+      const TEMP_TOKEN =
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ0ZW1wLXVzZXIiLCJleHAiOjk5OTk5OTk5OTl9.temp'
+      sessionStorage.setItem('accessToken', TEMP_TOKEN)
+      setLoggedIn(true)
+      void navigate({ to: '/main' })
+    },
+    // [TEMP] end
   })
 
   const otpMutation = useMutation({
@@ -83,7 +93,7 @@ export function LoginPage() {
         fingerprintRef.current
       ),
     onSuccess: (res) => {
-      localStorage.setItem('accessToken', res.data.token)
+      sessionStorage.setItem('accessToken', res.data.token)
       setLoggedIn(true)
       void navigate({ to: '/main' })
     },
@@ -110,9 +120,9 @@ export function LoginPage() {
     const identityVerificationId = `identity-verification-${crypto.randomUUID()}`
 
     const response = await PortOne.requestIdentityVerification({
-      storeId: (import.meta.env.VITE_PORTONE_STORE_ID ?? '') as string,
+      storeId: import.meta.env.VITE_PORTONE_STORE_ID ?? '',
       identityVerificationId,
-      channelKey: (import.meta.env.VITE_PORTONE_CHANNEL_KEY ?? '') as string,
+      channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY ?? '',
       popup: {
         center: true,
       },

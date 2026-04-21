@@ -4,8 +4,8 @@ import { useAuthStore } from './authStore'
 
 describe('authStore', () => {
   beforeEach(() => {
-    // 각 테스트 전 localStorage + store 초기화
-    localStorage.clear()
+    // 각 테스트 전 sessionStorage + store 초기화
+    sessionStorage.clear()
     // store를 초기 상태로 리셋
     useAuthStore.setState({
       isLoggedIn: false,
@@ -24,18 +24,18 @@ describe('authStore', () => {
     expect(useAuthStore.getState().isLoggedIn).toBe(false)
   })
 
-  it('logout()은 localStorage의 accessToken을 제거한다', () => {
-    localStorage.setItem('accessToken', 'mock-token')
+  it('logout()은 sessionStorage의 accessToken을 제거한다', () => {
+    sessionStorage.setItem('accessToken', 'mock-token')
     useAuthStore.setState({ isLoggedIn: true })
 
     useAuthStore.getState().logout()
 
-    expect(localStorage.getItem('accessToken')).toBeNull()
+    expect(sessionStorage.getItem('accessToken')).toBeNull()
   })
 
   it('logout()은 isLoggedIn을 false로 만든다', () => {
     useAuthStore.setState({ isLoggedIn: true })
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
 
     useAuthStore.getState().logout()
 
@@ -43,13 +43,13 @@ describe('authStore', () => {
   })
 
   it('logout()은 accessToken 제거와 isLoggedIn을 동시에 처리한다', () => {
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
     useAuthStore.setState({ isLoggedIn: true })
 
     useAuthStore.getState().logout()
 
     expect(useAuthStore.getState().isLoggedIn).toBe(false)
-    expect(localStorage.getItem('accessToken')).toBeNull()
+    expect(sessionStorage.getItem('accessToken')).toBeNull()
   })
 
   it('스토어는 여러 상태 변경을 지원한다', () => {

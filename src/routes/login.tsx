@@ -4,8 +4,8 @@ import { LoginPage } from '../pages/LoginPage'
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
-    if (localStorage.getItem('accessToken')) {
-      throw redirect({ to: '/main' })
+    if (sessionStorage.getItem('accessToken')) {
+      return redirect({ to: '/main' })
     }
   },
   component: LoginPage,

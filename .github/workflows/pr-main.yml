@@ -1,4 +1,4 @@
-## [미사용] 사용 시, Test 필요, PR (dev -> main) 생성 해도 Gihub Action이 실행되지 않느 이슈 있음  26..03.16    
+## [미사용] 사용 시, Test 필요, PR (dev -> main) 생성 해도 Gihub Action이 실행되지 않느 이슈 있음  26..03.16
 
 name: PR Main & Coverage
 
@@ -25,6 +25,13 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+
+      - name: Verify Node and pnpm versions
+        run: |
+          NODE_VERSION=$(node -v | cut -d'v' -f2)
+          PNPM_VERSION=$(pnpm -v)
+          echo "✅ Node.js: $NODE_VERSION"
+          echo "✅ pnpm: $PNPM_VERSION"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

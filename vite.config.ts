@@ -4,7 +4,21 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   base: './',
+  define: {
+    'global': 'globalThis',
+    'process': JSON.stringify({ env: {} }),
+  },
   plugins: [tanstackRouter(), react()],
+  build: {
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'ketcher-lib': ['ketcher-react', 'ketcher-standalone'],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

@@ -18,7 +18,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 describe('Header', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     useAuthStore.setState({ isLoggedIn: false })
     vi.mocked(useNavigate).mockReturnValue(mockNavigate)
     vi.clearAllMocks()
@@ -43,19 +43,19 @@ describe('Header', () => {
 
   it('Logout 버튼 클릭 시 isLoggedIn이 false가 된다', async () => {
     useAuthStore.setState({ isLoggedIn: true })
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
 
     render(<Header />)
     const logoutBtn = screen.getByRole('button', { name: 'Logout' })
     await userEvent.click(logoutBtn)
 
     expect(useAuthStore.getState().isLoggedIn).toBe(false)
-    expect(localStorage.getItem('accessToken')).toBeNull()
+    expect(sessionStorage.getItem('accessToken')).toBeNull()
   })
 
   it('Logout 버튼 클릭 시 /login으로 이동한다', async () => {
     useAuthStore.setState({ isLoggedIn: true })
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
 
     render(<Header />)
     const logoutBtn = screen.getByRole('button', { name: 'Logout' })
@@ -73,24 +73,26 @@ describe('Header', () => {
 
   it('사이트 로고가 렌더링된다', () => {
     render(<Header />)
-    expect(screen.getByText('prj-tobe')).toBeInTheDocument()
+    expect(screen.getByText('lab-manager-pro')).toBeInTheDocument()
   })
 
-  it('Logout 버튼 클릭 시 전체 흐름이 올바르게 동작한다', async () => {
+  it('Logout 버튼 클릭 시 로그아웃 처리 및 페이지 이동이 완료된다', async () => {
     useAuthStore.setState({ isLoggedIn: true })
-    localStorage.setItem('accessToken', 'test-token')
+    sessionStorage.setItem('accessToken', 'test-token')
 
     render(<Header />)
     const logoutBtn = screen.getByRole('button', { name: 'Logout' })
 
     await userEvent.click(logoutBtn)
 
-    // 모든 로그아웃 관련 동작 확인
+    // 상태 및 스토리지 확인
     expect(useAuthStore.getState().isLoggedIn).toBe(false)
-    expect(localStorage.getItem('accessToken')).toBeNull()
+    expect(sessionStorage.getItem('accessToken')).toBeNull()
+
+    // 페이지 이동 확인
     expect(mockNavigate).toHaveBeenCalledWith({ to: '/login' })
 
-    // 로그아웃 후 Login 링크가 보여야 함
+    // UI 변경 확인 - 로그아웃 후 Login 링크가 보여야 함
     expect(screen.getByText('Login')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Logout' })).not.toBeInTheDocument()
   })
