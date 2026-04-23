@@ -17,6 +17,7 @@
       "Bash(pnpm dev)",
       "Bash(pnpm ci:check)",
       "Bash(pnpm ci:check:fix)",
+      "Bash(pnpm audit*)",
       "Bash(pnpm install)",
       "Bash(git status)",
       "Bash(git status *)",
