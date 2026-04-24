@@ -15,7 +15,7 @@ export function Header() {
     <header className="border-b bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <Link to="/" className="text-base font-semibold text-gray-900">
-          prj-tobe
+          lab-manager-pro
         </Link>
         <nav aria-label="페이지 이동" className="flex gap-4 text-sm text-gray-600">
           <Link to="/" className="hover:text-indigo-600">

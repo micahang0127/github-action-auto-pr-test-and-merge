@@ -41,7 +41,7 @@ function isTokenExpired(token: string): boolean {
  * @returns 토큰이 유효하면 true, 유효하지 않으면 false
  */
 export function isAuthValid(): boolean {
-  const token = localStorage.getItem('accessToken')?.trim()
+  const token = sessionStorage.getItem('accessToken')?.trim()
 
   // 토큰 없음 또는 공백
   if (!token) {
@@ -50,13 +50,13 @@ export function isAuthValid(): boolean {
 
   // 토큰 형식 검증 실패
   if (!isValidTokenFormat(token)) {
-    localStorage.removeItem('accessToken')
+    sessionStorage.removeItem('accessToken')
     return false
   }
 
   // 토큰 만료 확인
   if (isTokenExpired(token)) {
-    localStorage.removeItem('accessToken')
+    sessionStorage.removeItem('accessToken')
     return false
   }
 
@@ -67,9 +67,8 @@ export function isAuthValid(): boolean {
  * 라우트 가드용 - TanStack Router beforeLoad에서 호출
  * 토큰 유효성을 검증하고 유효하지 않으면 로그인 페이지로 리디렉션
  */
-export function requireAuth(): void {
+export function requireAuth(): ReturnType<typeof redirect> | undefined {
   if (!isAuthValid()) {
-    // TanStack Router 패턴: RedirectError를 throw하여 리디렉션
-    throw redirect({ to: '/login' })
+    return redirect({ to: '/login' })
   }
 }

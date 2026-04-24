@@ -2,14 +2,13 @@
 
 echo "🔍 Checking code style, types, and tests..."
 
-# 1. 포맷 체크
+# 1. lint-staged로 Staging 파일들만 포맷팅 & 린트 수정 (빠른 처리)
 echo ""
-echo "📋 Checking code formatting..."
-pnpm format:check
+echo "📋 Auto-fixing staged files with Prettier and ESLint..."
+npx lint-staged
 if [ $? -ne 0 ]; then
   echo ""
-  echo "❌ Code style issues found!"
-  echo "💡 Fix: Run 'pnpm format' to auto-fix formatting"
+  echo "❌ Auto-fix failed!"
   exit 1
 fi
 
@@ -24,14 +23,14 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# 3. 린트 체크
+# 3. 최종 린트 검사 (자동 수정 후 남은 에러 확인)
 echo ""
-echo "📋 Running ESLint..."
+echo "📋 Running final ESLint check..."
 pnpm lint
 if [ $? -ne 0 ]; then
   echo ""
-  echo "❌ Linting errors found!"
-  echo "💡 Fix: Run 'pnpm lint:fix' to auto-fix linting issues"
+  echo "❌ Linting errors found that couldn't be auto-fixed!"
+  echo "💡 Fix: Check the errors above and fix them manually"
   exit 1
 fi
 

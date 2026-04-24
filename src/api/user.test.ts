@@ -6,7 +6,7 @@ import { changePassword, login, otpLogin, signup, withdraw } from './user'
 
 describe('login API', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.resetHandlers()
   })
 
@@ -106,7 +106,7 @@ describe('login API', () => {
   })
 
   it('로그인 요청에 Authorization 헤더가 포함되지 않는다', async () => {
-    localStorage.setItem('accessToken', 'existing-token')
+    sessionStorage.setItem('accessToken', 'existing-token')
     let authHeader: string | null = null
     server.use(
       http.post('*/user/login', ({ request }) => {
@@ -126,7 +126,7 @@ describe('login API', () => {
 
 describe('signup API', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.resetHandlers()
   })
 
@@ -199,12 +199,12 @@ describe('signup API', () => {
 
 describe('withdraw API', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.resetHandlers()
   })
 
   it('성공 시 statusCode 200을 반환한다', async () => {
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
     server.use(
       http.delete('*/auth/withdraw', () =>
         HttpResponse.json({
@@ -220,7 +220,7 @@ describe('withdraw API', () => {
   })
 
   it('토큰 없으면 401 에러를 던진다', async () => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.use(
       http.delete('*/auth/withdraw', () =>
         HttpResponse.json(
@@ -238,7 +238,7 @@ describe('withdraw API', () => {
   })
 
   it('서버 오류 시 에러를 던진다', async () => {
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
     server.use(
       http.delete('*/auth/withdraw', () =>
         HttpResponse.json(
@@ -258,12 +258,12 @@ describe('withdraw API', () => {
 
 describe('changePassword API', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.resetHandlers()
   })
 
   it('성공 시 statusCode 200을 반환한다', async () => {
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
     server.use(
       http.patch('*/auth/password', () =>
         HttpResponse.json({
@@ -282,7 +282,7 @@ describe('changePassword API', () => {
   })
 
   it('토큰 없으면 401 에러를 던진다', async () => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.use(
       http.patch('*/auth/password', () =>
         HttpResponse.json(
@@ -305,7 +305,7 @@ describe('changePassword API', () => {
   })
 
   it('현재 비밀번호가 틀리면 에러를 던진다', async () => {
-    localStorage.setItem('accessToken', 'mock-token')
+    sessionStorage.setItem('accessToken', 'mock-token')
     server.use(
       http.patch('*/auth/password', () =>
         HttpResponse.json(
@@ -330,7 +330,7 @@ describe('changePassword API', () => {
 
 describe('otpLogin API', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.resetHandlers()
   })
 
@@ -412,7 +412,7 @@ describe('otpLogin API', () => {
   })
 
   it('OTP 로그인 요청에 Authorization 헤더가 포함되지 않는다', async () => {
-    localStorage.setItem('accessToken', 'existing-token')
+    sessionStorage.setItem('accessToken', 'existing-token')
     let authHeader: string | null = null
     server.use(
       http.post('*/user/otplogin', ({ request }) => {

@@ -6,12 +6,12 @@ import { api } from './index'
 
 describe('api client', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     server.resetHandlers()
   })
 
-  it('Authorization 헤더에 localStorage 토큰을 자동으로 포함한다', async () => {
-    localStorage.setItem('accessToken', 'test-token-123')
+  it('Authorization 헤더에 sessionStorage 토큰을 자동으로 포함한다', async () => {
+    sessionStorage.setItem('accessToken', 'test-token-123')
 
     let receivedAuth: string | null = null
     server.use(
